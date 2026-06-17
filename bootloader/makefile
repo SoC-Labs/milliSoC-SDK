@@ -38,15 +38,17 @@ CPU_PRODUCT = CORTEX_M7
 
 TARGET = arm-none-eabi
 # Shared software directory
-SOFTWARE_DIR = $(SOCLABS_MILLISOC_TECH_DIR)/software
-CMSIS_DIR    = $(SOFTWARE_DIR)/lib/CMSIS
+SOFTWARE_DIR = $(CURDIR)/../
+CMSIS_DIR    = $(SOFTWARE_DIR)/libs/CMSIS
 CORE_DIR     = $(CMSIS_DIR)/include
 
-DEVICE_DIR   = $(SOFTWARE_DIR)/lib/Device/ARM/CM7/cm7ikmcu
+DEVICE_DIR   = $(SOFTWARE_DIR)/libs/Device/M7/cm7ikmcu
 
 
 # Program file
 BOOTLOADER     = bootloader
+TEST_DIR 	 = $(SOFTWARE_DIR)/bootloader
+BUILD_DIR    = $(SOFTWARE_DIR)/build/bootloader
 
 # Endian Option
 COMPILE_BIGEND = 0
@@ -106,9 +108,9 @@ else
   ARM_TARGET = -O3 -Otime --c99
 endif
 
-ARM_CC_OPTIONS   = $(ARM_TARGET) -c -D_FPU -Ono_autoinline --enum_is_int -Ono_inline --thumb --apcs /interwork --fpmode=fast -g --data_reorder --diag_suppress=2874 -I $(DEVICE_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/lib/common/CMSDK  \
-		   -I $(SOFTWARE_DIR)/lib/Drivers/Include  \
-		   -I $(SOFTWARE_DIR)/lib/common/retarget $(USER_DEFINE)
+ARM_CC_OPTIONS   = $(ARM_TARGET) -c -D_FPU -Ono_autoinline --enum_is_int -Ono_inline --thumb --apcs /interwork --fpmode=fast -g --data_reorder --diag_suppress=2874 -I $(DEVICE_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/libs/common/CMSDK  \
+		   -I $(SOFTWARE_DIR)/libs/Drivers/Include  \
+		   -I $(SOFTWARE_DIR)/libs/common/retarget $(USER_DEFINE)
 
 ARM_ASM_OPTIONS  = -g
 ARM_LINK_OPTIONS = "--keep=$(STARTUP_FILE).o(vectors)" "--first=$(STARTUP_FILE).o(vectors)" \
@@ -157,38 +159,39 @@ all: all_$(TOOL_CHAIN)
 
 # ---------------------------------------------------------------------------------------
 # DS-5
-all_ds5 : $(BOOTLOADER).hex $(BOOTLOADER).lst
-all_ds6 : $(BOOTLOADER).hex $(BOOTLOADER).lst
+all_ds5 : $(BUILD_DIR)/$(BOOTLOADER).hex $(BUILD_DIR)/$(BOOTLOADER).lst
+all_ds6 : $(BUILD_DIR)/$(BOOTLOADER).hex $(BUILD_DIR)/$(BOOTLOADER).lst
 
 
-$(BOOTLOADER).o :  $(SOFTWARE_DIR)/src/bootloader/$(BOOTLOADER).c $(DEPS_LIST)
+$(BUILD_DIR)/$(BOOTLOADER).o :  $(SOFTWARE_DIR)/bootloader/$(BOOTLOADER).c $(DEPS_LIST)
+	mkdir -p $(BUILD_DIR)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
 
-$(SYSTEM_FILE).o : $(DEVICE_DIR)/Source/$(SYSTEM_FILE).c $(DEPS_LIST)
+$(BUILD_DIR)/$(SYSTEM_FILE).o : $(DEVICE_DIR)/Source/$(SYSTEM_FILE).c $(DEPS_LIST)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
 
-$(STARTUP_FILE).o : $(STARTUP_DIR)/$(STARTUP_FILE).c $(DEPS_LIST)
+$(BUILD_DIR)/$(STARTUP_FILE).o : $(STARTUP_DIR)/$(STARTUP_FILE).c $(DEPS_LIST)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
 
-SL_QPSI.o: $(SOFTWARE_DIR)/lib/Drivers/Source/SL_QSPI.c $(DEPS_LIST)
+$(BUILD_DIR)/SL_QPSI.o: $(SOFTWARE_DIR)/libs/Drivers/Source/SL_QSPI.c $(DEPS_LIST)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
 
-ada_dma_command_lib.o: $(SOFTWARE_DIR)/lib/Drivers/Source/ada_dma_command_lib.c $(DEPS_LIST)
+$(BUILD_DIR)/ada_dma_command_lib.o: $(SOFTWARE_DIR)/libs/Drivers/Source/ada_dma_command_lib.c $(DEPS_LIST)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
 
-retarget.o : $(SOFTWARE_DIR)/lib/common/retarget/retarget.c $(DEPS_LIST)
+$(BUILD_DIR)/retarget.o : $(SOFTWARE_DIR)/libs/common/retarget/retarget.c $(DEPS_LIST)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
 
-uart_stdout.o : $(SOFTWARE_DIR)/lib/common/retarget/uart_stdout.c $(DEPS_LIST)
+$(BUILD_DIR)/uart_stdout.o : $(SOFTWARE_DIR)/libs/common/retarget/uart_stdout.c $(DEPS_LIST)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
 
-$(BOOTLOADER).ELF : $(BOOTLOADER).o $(SYSTEM_FILE).o $(STARTUP_FILE).o retarget.o uart_stdout.o ada_dma_command_lib.o SL_QPSI.o $(DEPS_LIST)
-	armlink $(ARM_LINK_OPTIONS) $(BOOTLOADER).o $(SYSTEM_FILE).o  $(STARTUP_FILE).o retarget.o uart_stdout.o ada_dma_command_lib.o SL_QPSI.o -o $@
+$(BUILD_DIR)/$(BOOTLOADER).ELF : $(BUILD_DIR)/$(BOOTLOADER).o $(BUILD_DIR)/$(SYSTEM_FILE).o $(BUILD_DIR)/$(STARTUP_FILE).o $(BUILD_DIR)/retarget.o $(BUILD_DIR)/uart_stdout.o $(BUILD_DIR)/ada_dma_command_lib.o $(BUILD_DIR)/SL_QPSI.o $(DEPS_LIST)
+	armlink $(ARM_LINK_OPTIONS) $(BUILD_DIR)/$(BOOTLOADER).o $(BUILD_DIR)/$(SYSTEM_FILE).o  $(BUILD_DIR)/$(STARTUP_FILE).o $(BUILD_DIR)/retarget.o $(BUILD_DIR)/uart_stdout.o $(BUILD_DIR)/ada_dma_command_lib.o $(BUILD_DIR)/SL_QPSI.o -o $@
 
-$(BOOTLOADER).hex : $(BOOTLOADER).ELF $(DEPS_LIST)
+$(BUILD_DIR)/$(BOOTLOADER).hex : $(BUILD_DIR)/$(BOOTLOADER).ELF $(DEPS_LIST)
 	fromelf --vhx --8x1 $< --output $@
 
-$(BOOTLOADER).lst : $(BOOTLOADER).ELF $(DEPS_LIST)
+$(BUILD_DIR)/$(BOOTLOADER).lst : $(BUILD_DIR)/$(BOOTLOADER).ELF $(DEPS_LIST)
 	fromelf -c -d -e -s $< --output $@
 
 # ---------------------------------------------------------------------------------------

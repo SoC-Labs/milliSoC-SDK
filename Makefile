@@ -24,7 +24,7 @@
 #
 #-----------------------------------------------------------------------------
 CPU_PRODUCT ?= CORTEX_M7
-
+CPU_TYPE ?= CM7
 TARGET = arm-none-eabi
 # Shared software directory
 SOFTWARE_DIR = $(CURDIR)
@@ -32,15 +32,14 @@ CMSIS_DIR    = $(SOFTWARE_DIR)/libs/CMSIS
 CORE_DIR     = $(CMSIS_DIR)/include
 
 ifeq ($(CPU_TYPE),CM7)
-	DEVICE_DIR   = $(SOFTWARE_DIR)/lib/Device/ARM/CM7/cm7ikmcu
+	DEVICE_DIR   = $(SOFTWARE_DIR)/libs/Device/M7/cm7ikmcu
 else ifeq ($(CPU_TYPE), CM55)
-	DEVICE_DIR   = $(SOFTWARE_DIR)/lib/Device/ARM/CM55/cm7ikmcu
-
+	DEVICE_DIR   = $(SOFTWARE_DIR)/libs/Device/M55/cm7ikmcu
 endif
 
 # Program file
 TESTNAME     ?= hello
-TEST_DIR 	 = $(SOFTWARE_DIR)/src/$(TESTNAME)
+TEST_DIR 	 = $(SOFTWARE_DIR)/apps/$(TESTNAME)
 BUILD_DIR    = $(SOFTWARE_DIR)/build
 # Endian Option
 COMPILE_BIGEND = 0
@@ -52,7 +51,7 @@ else ifeq ($(CPU_TYPE), CM55)
 	USER_DEFINE    = -DCORTEX_M55
 endif
 
-DEPS_LIST       = makefile
+DEPS_LIST       = 
 
 # Tool chain : ds5 / gcc / keil
 TOOL_CHAIN      = ds5
@@ -111,9 +110,9 @@ else
   ARM_TARGET = -O3 -Otime
 endif
 
-ARM_CC_OPTIONS   = $(ARM_TARGET) -c -D_FPU -Ono_autoinline --enum_is_int -Ono_inline --thumb --apcs /interwork --fpmode=fast -g --data_reorder --diag_suppress=2874 -I $(DEVICE_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/lib/common/CMSDK \
-		   -I $(SOFTWARE_DIR)/lib/Drivers/Include  \
-		   -I $(SOFTWARE_DIR)/lib/common/retarget $(USER_DEFINE)
+ARM_CC_OPTIONS   = $(ARM_TARGET) -c -D_FPU -Ono_autoinline --enum_is_int -Ono_inline --thumb --apcs /interwork --fpmode=fast -g --data_reorder --diag_suppress=2874 -I $(DEVICE_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/libs/common/CMSDK \
+		   -I $(SOFTWARE_DIR)/libs/Drivers/Include  \
+		   -I $(SOFTWARE_DIR)/libs/common/retarget $(USER_DEFINE)
 ARM_ASM_OPTIONS  = 
 ARM_LINK_OPTIONS = "--keep=$(STARTUP_FILE).o(vectors)" "--first=$(STARTUP_FILE).o(vectors)" \
 		--rw_base 0x20000000 --ro_base 0x000000 --map --datacompressor=off --info=inline
@@ -157,32 +156,34 @@ all: all_$(TOOL_CHAIN)
 
 # ---------------------------------------------------------------------------------------
 # DS-5
-all_ds5 : $(TEST_DIR)/$(TESTNAME).hex $(TEST_DIR)/$(TESTNAME).lst
-all_ds6 : $(TEST_DIR)/$(TESTNAME).hex $(TEST_DIR)/$(TESTNAME).lst
+all_ds5 : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).hex $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).lst
+all_ds6 : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).hex $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).lst
 
-$(BUILD_DIR)/$(TESTNAME).o :  $(TEST_DIR)/$(TESTNAME).c $(DEPS_LIST)
+$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).o :  $(TEST_DIR)/$(TESTNAME).c $(DEPS_LIST)
+	mkdir -p $(BUILD_DIR)/$(TESTNAME)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
 
-$(BUILD_DIR)/$(SYSTEM_FILE).o : $(DEVICE_DIR)/Source/$(SYSTEM_FILE).c $(DEPS_LIST)
+$(BUILD_DIR)/common/$(SYSTEM_FILE).o : $(DEVICE_DIR)/Source/$(SYSTEM_FILE).c $(DEPS_LIST)
+	mkdir -p $(BUILD_DIR)/common
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
 
-$(TEST_DIR)/retarget.o : $(SOFTWARE_DIR)/lib/common/retarget/retarget.c $(DEPS_LIST)
+$(BUILD_DIR)/common/retarget.o : $(SOFTWARE_DIR)/libs/common/retarget/retarget.c $(DEPS_LIST)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
 
-$(TEST_DIR)/uart_stdout.o : $(SOFTWARE_DIR)/lib/common/retarget/uart_stdout.c $(DEPS_LIST)
+$(BUILD_DIR)/common/uart_stdout.o : $(SOFTWARE_DIR)/libs/common/retarget/uart_stdout.c $(DEPS_LIST)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
 
-$(TEST_DIR)/$(STARTUP_FILE).o : $(STARTUP_DIR)/$(STARTUP_FILE).c $(DEPS_LIST)
+$(BUILD_DIR)/common/$(STARTUP_FILE).o : $(STARTUP_DIR)/$(STARTUP_FILE).c $(DEPS_LIST)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
 
-$(TEST_DIR)/$(TESTNAME).ELF : $(TEST_DIR)/$(TESTNAME).o $(TEST_DIR)/$(SYSTEM_FILE).o $(TEST_DIR)/$(STARTUP_FILE).o $(TEST_DIR)/retarget.o $(TEST_DIR)/uart_stdout.o
-	armlink $(ARM_LINK_OPTIONS) $(TEST_DIR)/$(TESTNAME).o $(TEST_DIR)/$(SYSTEM_FILE).o  $(TEST_DIR)/$(STARTUP_FILE).o $(TEST_DIR)/retarget.o $(TEST_DIR)/uart_stdout.o -o $@
+$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).ELF : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).o $(BUILD_DIR)/common/$(SYSTEM_FILE).o $(BUILD_DIR)/common/$(STARTUP_FILE).o $(BUILD_DIR)/common/retarget.o $(BUILD_DIR)/common/uart_stdout.o
+	armlink $(ARM_LINK_OPTIONS) $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).o $(BUILD_DIR)/common/$(SYSTEM_FILE).o  $(BUILD_DIR)/common/$(STARTUP_FILE).o $(BUILD_DIR)/common/retarget.o $(BUILD_DIR)/common/uart_stdout.o -o $@
 
-$(TEST_DIR)/$(TESTNAME).hex : $(TEST_DIR)/$(TESTNAME).ELF
-	fromelf --bin $< --output $(TEST_DIR)/$(TESTNAME).bin
+$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).hex : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).ELF
+	fromelf --bin $< --output $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).bin
 	fromelf --vhx --8x1 $< --output $@
 
-$(TEST_DIR)/$(TESTNAME).lst : $(TEST_DIR)/$(TESTNAME).ELF
+$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).lst : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).ELF
 	fromelf -c -d -e -s -z -v $< --output $@
 
 # ---------------------------------------------------------------------------------------
@@ -229,30 +230,46 @@ all_bin: $(TESTNAME).bin
 # ---------------------------------------------------------------------------------------
 # Clean
 clean :
-	@rm -rf $(TEST_DIR)/*.o
-	@if [ -e $(TEST_DIR)/$(TESTNAME).hex ] ; then \
-	  rm -rf $(TEST_DIR)/$(TESTNAME).hex ; \
-	fi
-	@if [ -e $(TEST_DIR)/$(TESTNAME).lst ] ; then \
-	  rm -rf $(TEST_DIR)/$(TESTNAME).lst ; \
-	fi
-	@if [ -e $(TEST_DIR)/$(TESTNAME).ELF ] ; then \
-	  rm -rf $(TEST_DIR)/$(TESTNAME).ELF ; \
-	fi
-	@if [ -e $(TEST_DIR)/$(TESTNAME).bin ] ; then \
-	  rm -rf $(TEST_DIR)/$(TESTNAME).bin ; \
-	fi
-	@rm -rf $(TEST_DIR)/*.crf
-	@rm -rf $(TEST_DIR)/*.plg
-	@rm -rf $(TEST_DIR)/*.tra
-	@rm -rf $(TEST_DIR)/*.htm
-	@rm -rf $(TEST_DIR)/*.map
-	@rm -rf $(TEST_DIR)/*.dep
-	@rm -rf $(TEST_DIR)/*.d
-	@rm -rf $(TEST_DIR)/*.lnp
-	@rm -rf $(TEST_DIR)/*.bak
-	@rm -rf $(TEST_DIR)/*.lst
-	@rm -rf $(TEST_DIR)/*.axf
-	@rm -rf $(TEST_DIR)/*.sct
-	@rm -rf $(TEST_DIR)/*.__i
-	@rm -rf $(TEST_DIR)/*._ia
+	@rm -rf $(BUILD_DIR)
+
+
+# Bootrom Parameters:
+# Boot Loader image
+BOOTLOADER        ?= bootloader
+BOOTROM_ADDRW     ?= 12
+BOOTROM_HEX       ?= $(BUILD_DIR)/bootloader/$(BOOTLOADER).hex
+BOOTROM_BUILD_DIR ?= $(SOCLABS_PROJECT_DIR)/system/src/bootrom
+
+# code target is used by other simulation targets (e.g. run_mti, sim_mti)
+# Before simulation, bootrom and testcode need to be compiled.
+code : testcode bootrom
+
+# Boot ROM generation
+#--------------------------------------------------------------------------------
+# Output files and directories
+BOOTROM_SV_DIR := $(BOOTROM_BUILD_DIR)/verilog
+BOOTROM_BIN_DIR:= $(BOOTROM_BUILD_DIR)/bintxt
+
+# Output files
+BOOTROM_SV     := $(BOOTROM_SV_DIR)/bootrom.sv
+BOOTROM_BIN    := $(BOOTROM_BIN_DIR)/bootrom.bintxt
+
+# Intermediate files
+BOOTLOADER_HEX := $(BUILD_DIR)/bootloader/$(BOOTLOADER).hex
+BOOTROM_GEN_PY := $(SOFTWARE_DIR)/bootloader/bootrom_gen.py
+
+bootrom: $(BOOTROM_SV) $(BOOTROM_BIN) $(BOOTROM_SIM_HEX)
+
+# Generate the Boot ROM Verilog and Binary Text files from the bootloader hex file
+$(BOOTROM_SV) $(BOOTROM_BIN): $(BOOTROM_HEX) $(BOOTROM_GEN_PY) | $(BOOTROM_SV_DIR) $(BOOTROM_BIN_DIR)
+	@echo "Generating Boot ROM Verilog and Binary Text files"
+	@echo "Toolchain: $(TOOL_CHAIN)"
+	@python3 $(BOOTROM_GEN_PY) -a $(BOOTROM_ADDRW) -i $(BOOTROM_HEX) -t $(TOOL_CHAIN) -v $(BOOTROM_SV) -b $(BOOTROM_BIN)
+
+# Create output directories if they do not exist
+$(BOOTROM_SV_DIR) $(BOOTROM_BIN_DIR):
+	@mkdir -p $@
+
+# Compile bootloader in the testcodes/bootloader directory
+$(BOOTROM_HEX):
+	$(MAKE) -C $(SOFTWARE_DIR)/$(BOOTLOADER) all_$(TOOL_CHAIN) $(SW_MAKE_OPTIONS)
