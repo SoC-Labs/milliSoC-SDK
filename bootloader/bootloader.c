@@ -1,4 +1,4 @@
-#include "cm7ikmcu.h"
+#include "exectb_mcu.h"
 #include "CMSDK.h"
 #include "uart_stdout.h"
 #include <stdio.h>
@@ -27,7 +27,7 @@ int main (void)
   // STDOUT init
   UartStdOutInit();
 
-  printf("\nSoCLabs MilliSoC'25 ARM-CM7\n");
+  printf("\nSoCLabs MilliSoC'26 ARM-CM85\n");
   printf("Bootloader starting...\n");
 
   FlashInit();
@@ -48,12 +48,14 @@ int main (void)
 }
 
 
-__asm void start_main_code(void){
-  MOVS  R0,#0;
-  LDR   R1,[R0];     //; Get initial MSP value
-  MOV   SP, R1;
-  LDR   R1,[R0, #4]; //; Get initial PC value
-  BX    R1;
+void start_main_code(void){
+  asm volatile(
+  "MOVS  R0,#0\n\t"
+  "LDR   R1,[R0]\n\t"     //; Get initial MSP value
+  "MOV   SP, R1\n\t"
+  "LDR   R1,[R0, #4]\n\t" //; Get initial PC value
+  "BX    R1\n\t"
+  );
 }
 
 int DmaMemcpy(void){

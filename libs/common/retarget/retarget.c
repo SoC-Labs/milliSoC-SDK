@@ -34,7 +34,7 @@
 #if defined ( __CC_ARM   ) 
 #pragma import(__use_no_semihosting_swi)
 #else
-__asm(".global __use_no_semihosting");
+//__asm(".global __use_no_semihosting");
 #endif
 extern unsigned char UartGetc(void);
 extern unsigned char UartPutc(unsigned char my_ch);

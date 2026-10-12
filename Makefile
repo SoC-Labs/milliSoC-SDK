@@ -23,7 +23,6 @@
 # Cortex-M System Design Kit software compilation make file
 #
 #-----------------------------------------------------------------------------
-CPU_PRODUCT ?= CORTEX_M7
 CPU_TYPE ?= CM7
 TARGET = arm-none-eabi
 # Shared software directory
@@ -35,6 +34,8 @@ ifeq ($(CPU_TYPE),CM7)
 	DEVICE_DIR   = $(SOFTWARE_DIR)/libs/Device/M7/cm7ikmcu
 else ifeq ($(CPU_TYPE), CM55)
 	DEVICE_DIR   = $(SOFTWARE_DIR)/libs/Device/M55/cm7ikmcu
+else ifeq ($(CPU_TYPE), CM85)
+	DEVICE_DIR   = $(SOFTWARE_DIR)/libs/Device/M85/exectb_mcu
 endif
 
 # Program file
@@ -49,23 +50,34 @@ ifeq ($(CPU_TYPE), CM7)
 	USER_DEFINE    = -DCORTEX_M7
 else ifeq ($(CPU_TYPE), CM55)
 	USER_DEFINE    = -DCORTEX_M55
+else ifeq ($(CPU_TYPE), CM85)
+	USER_DEFINE    = -DCORTEX_M85
 endif
+
 
 DEPS_LIST       = 
 
 # Tool chain : ds5 / gcc / keil
-TOOL_CHAIN      = ds5
+TOOL_CHAIN      = ds6
 
 ifeq ($(TOOL_CHAIN),ds5)
-    CPU_TYPE        = --cpu=Cortex-M7.fp.sp
+	ifeq ($(CPU_TYPE),CM55)
+    	CPU_OPTS        = --cpu=Cortex-M55.fp.sp
+	else ifeq ($(CPU_TYPE),CM85)
+    	CPU_OPTS        = --cpu=Cortex-M85.fp.sp
+	endif
 endif
 
 ifeq ($(TOOL_CHAIN),ds6)
-    CPU_TYPE        = -mcpu=Cortex-M7.fp.sp
+	ifeq ($(CPU_TYPE),CM55)
+		CPU_OPTS        = -mcpu=cortex-m55
+	else ifeq ($(CPU_TYPE),CM85)
+		CPU_OPTS        = -mcpu=cortex-m85
+	endif
 endif
 
 ifeq ($(TOOL_CHAIN),gcc)
-    CPU_TYPE        = -mcpu=cortex-m7
+    CPU_OPTS        = -mcpu=cortex-m7
 endif
 
 
@@ -83,8 +95,16 @@ ifeq ($(TOOL_CHAIN),gcc)
  STARTUP_DIR  = $(DEVICE_DIR)/Source/GCC
 endif
 
-STARTUP_FILE = boot_cm7ikmcu
-SYSTEM_FILE  = system_cm7ikmcu
+ifeq ($(CPU_TYPE),CM7)
+	STARTUP_FILE = boot_cm7ikmcu
+	SYSTEM_FILE  = system_cm7ikmcu
+else ifeq ($(CPU_TYPE),CM55)
+	STARTUP_FILE = boot_cm55ikmcu
+	SYSTEM_FILE  = system_cm55ikmcu
+else ifeq ($(CPU_TYPE),CM85)
+	STARTUP_FILE = boot_exectb_mcu
+	SYSTEM_FILE  = system_exectb_mcu
+endif
 
 # ---------------------------------------------------------------------------------------
 # DS-5 options
@@ -110,12 +130,14 @@ else
   ARM_TARGET = -O3 -Otime
 endif
 
-ARM_CC_OPTIONS   = $(ARM_TARGET) -c -D_FPU -Ono_autoinline --enum_is_int -Ono_inline --thumb --apcs /interwork --fpmode=fast -g --data_reorder --diag_suppress=2874 -I $(DEVICE_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/libs/common/CMSDK \
+ARM_CC_OPTIONS   = $(ARM_TARGET) -c -D_FPU -mthumb -I $(DEVICE_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/libs/common/CMSDK \
 		   -I $(SOFTWARE_DIR)/libs/Drivers/Include  \
 		   -I $(SOFTWARE_DIR)/libs/common/retarget $(USER_DEFINE)
 ARM_ASM_OPTIONS  = 
 ARM_LINK_OPTIONS = "--keep=$(STARTUP_FILE).o(vectors)" "--first=$(STARTUP_FILE).o(vectors)" \
 		--rw_base 0x20000000 --ro_base 0x000000 --map --datacompressor=off --info=inline
+
+ARM_LINK_OPTIONS += --scatter /home/dwn1c21/SoC-Labs/millisoc_project/millisoc_sdk/scatter/M85/armclang.scat
 
 ifeq ($(COMPILE_BIGEND),1)
  # Big Endian
@@ -144,7 +166,7 @@ LINKER_SCRIPT = $(LINKER_SCRIPT_PATH)/cmsdk_cm0.ld
 # GCC optimization specs
 GCC_SPEC_OPTS := --specs=nano.specs -Wl,--gc-sections
 
-GNU_CC_FLAGS = -g -O3 -mthumb $(CPU_TYPE) $(GCC_SPEC_OPTS)
+GNU_CC_FLAGS = -g -O3 -mthumb $(CPU_OPTS) $(GCC_SPEC_OPTS)
 
 ifeq ($(COMPILE_BIGEND),1)
  # Big Endian
@@ -161,20 +183,20 @@ all_ds6 : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).hex $(BUILD_DIR)/$(TESTNAME)/$(TE
 
 $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).o :  $(TEST_DIR)/$(TESTNAME).c $(DEPS_LIST)
 	mkdir -p $(BUILD_DIR)/$(TESTNAME)
-	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
+	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_OPTS) $< -o  $@
 
 $(BUILD_DIR)/common/$(SYSTEM_FILE).o : $(DEVICE_DIR)/Source/$(SYSTEM_FILE).c $(DEPS_LIST)
 	mkdir -p $(BUILD_DIR)/common
-	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
+	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_OPTS) $< -o  $@
 
 $(BUILD_DIR)/common/retarget.o : $(SOFTWARE_DIR)/libs/common/retarget/retarget.c $(DEPS_LIST)
-	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
+	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_OPTS) $< -o  $@
 
 $(BUILD_DIR)/common/uart_stdout.o : $(SOFTWARE_DIR)/libs/common/retarget/uart_stdout.c $(DEPS_LIST)
-	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
+	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_OPTS) $< -o  $@
 
 $(BUILD_DIR)/common/$(STARTUP_FILE).o : $(STARTUP_DIR)/$(STARTUP_FILE).c $(DEPS_LIST)
-	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
+	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_OPTS) $< -o  $@
 
 $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).ELF : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).o $(BUILD_DIR)/common/$(SYSTEM_FILE).o $(BUILD_DIR)/common/$(STARTUP_FILE).o $(BUILD_DIR)/common/retarget.o $(BUILD_DIR)/common/uart_stdout.o
 	armlink $(ARM_LINK_OPTIONS) $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).o $(BUILD_DIR)/common/$(SYSTEM_FILE).o  $(BUILD_DIR)/common/$(STARTUP_FILE).o $(BUILD_DIR)/common/retarget.o $(BUILD_DIR)/common/uart_stdout.o -o $@

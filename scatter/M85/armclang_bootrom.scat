@@ -1,0 +1,19 @@
+lr 0x60400000
+{
+    rom_s 0x60400000
+    {
+        boot_exectb_mcu.o(vectors,+FIRST)
+        *(InRoot$$Sections)
+        .ANY (+RO)
+    }
+
+    ram_s 0x20000000 0x7FF0 {
+        .ANY(+RW,+ZI)
+    }
+
+    ARM_LIB_HEAP +0 EMPTY 0x2000
+    { }
+
+    ARM_LIB_STACK 0x2000FFF0 EMPTY -0x8000
+    { }
+}

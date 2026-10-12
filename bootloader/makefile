@@ -34,7 +34,7 @@
 # Cortex-M System Design Kit software compilation make file
 #
 #-----------------------------------------------------------------------------
-CPU_PRODUCT = CORTEX_M7
+CPU_PRODUCT = CORTEX_M85
 
 TARGET = arm-none-eabi
 # Shared software directory
@@ -42,7 +42,7 @@ SOFTWARE_DIR = $(CURDIR)/../
 CMSIS_DIR    = $(SOFTWARE_DIR)/libs/CMSIS
 CORE_DIR     = $(CMSIS_DIR)/include
 
-DEVICE_DIR   = $(SOFTWARE_DIR)/libs/Device/M7/cm7ikmcu
+DEVICE_DIR   = $(SOFTWARE_DIR)/libs/Device/M85/exectb_mcu
 
 
 # Program file
@@ -54,19 +54,19 @@ BUILD_DIR    = $(SOFTWARE_DIR)/build/bootloader
 COMPILE_BIGEND = 0
 
 # Configuration
-USER_DEFINE    = -DCORTEX_M7
+USER_DEFINE    = -DCORTEX_M85
 
 DEPS_LIST       = makefile
 
 # Tool chain : ds5 / gcc / keil
-TOOL_CHAIN      = ds5
+TOOL_CHAIN      = ds6
 
 ifeq ($(TOOL_CHAIN),ds5)
     CPU_TYPE        = --cpu=Pelican.fp
 endif
 
 ifeq ($(TOOL_CHAIN),ds6)
-    CPU_TYPE        = -mcpu=Cortex-M7.fp.sp
+    CPU_TYPE        = -mcpu=cortex-m85
 endif
 
 ifeq ($(TOOL_CHAIN),gcc)
@@ -88,8 +88,8 @@ ifeq ($(TOOL_CHAIN),gcc)
  STARTUP_DIR  = $(DEVICE_DIR)/Source/GCC
 endif
 
-STARTUP_FILE = boot_cm7ikmcu
-SYSTEM_FILE  = system_cm7ikmcu
+STARTUP_FILE = boot_exectb_mcu
+SYSTEM_FILE  = system_exectb_mcu
 
 # ---------------------------------------------------------------------------------------
 # DS-5 options
@@ -108,17 +108,13 @@ else
   ARM_TARGET = -O3 -Otime --c99
 endif
 
-ARM_CC_OPTIONS   = $(ARM_TARGET) -c -D_FPU -Ono_autoinline --enum_is_int -Ono_inline --thumb --apcs /interwork --fpmode=fast -g --data_reorder --diag_suppress=2874 -I $(DEVICE_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/libs/common/CMSDK  \
+ARM_CC_OPTIONS   = $(ARM_TARGET) -c -D_FPU -mthumb -I $(DEVICE_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/libs/common/CMSDK \
 		   -I $(SOFTWARE_DIR)/libs/Drivers/Include  \
 		   -I $(SOFTWARE_DIR)/libs/common/retarget $(USER_DEFINE)
 
 ARM_ASM_OPTIONS  = -g
-ARM_LINK_OPTIONS = "--keep=$(STARTUP_FILE).o(vectors)" "--first=$(STARTUP_FILE).o(vectors)" \
-		--rw_base 0x20000000 --ro_base 0x60400000 --map --remove --datacompressor=off --info=inline --info unused
+ARM_LINK_OPTIONS += --scatter /home/dwn1c21/SoC-Labs/millisoc_project/millisoc_sdk/scatter/M85/armclang_bootrom.scat
 
-ifeq ($(TOOL_CHAIN),ds6)
-	ARM_LINK_OPTIONS += --no_scatterload_enabled
-endif
 
 ifeq ($(COMPILE_BIGEND),1)
  # Big Endian
