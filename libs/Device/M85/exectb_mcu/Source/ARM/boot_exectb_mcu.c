@@ -381,9 +381,11 @@ extern void __main(void);
 
 void Reset_Handler(void)
 {
+
   #ifndef NS_IMAGE
   SystemInit();
   #endif // NS_IMAGE
+  #ifdef BOOTROM
   LPStateInit();
   #ifndef NS_IMAGE
   #if ((defined (__ICACHE_PRESENT) && (__ICACHE_PRESENT == 1U)) || \
@@ -392,6 +394,7 @@ void Reset_Handler(void)
   #endif /* #if Cache present */
   fpu_enable();
   #endif // NS_IMAGE
+  #endif
   __main();
 }
 

@@ -37,26 +37,23 @@
 void UartStdOutInit(void)
 {
   CMSDK_UART0->CTRL    = 0x00;       // disable whie reprogramming
-
-  CMSDK_USRT0->CTRL    = 0x00;       // RX+TX, FT1248 USRT
-  CMSDK_USRT0->BAUDDIV = 0x00;       // (prescaler value)
-  CMSDK_USRT0->CTRL    = 0x03;       // RX+TX, FT1248 USRT
+  CMSDK_UART0->BAUDDIV = BAUDCLKDIV; // (prescaler value)
+  CMSDK_UART0->CTRL    = 0x01;       // RX+TX, FT1248 USRT
   return;
 }
 
 // Output a character
 unsigned char UartPutc(unsigned char my_ch)
 {
-  while (CMSDK_USRT0->STATE & 1); // Wait if Transmit Holding register full
-  CMSDK_USRT0->DATA = my_ch; // write to transmit holding register
+  while (CMSDK_UART0->STATE & 1); // Wait if Transmit Holding register full
+  CMSDK_UART0->DATA = my_ch; // write to transmit holding register
   return (my_ch);
 }
 // Get a character
 unsigned char UartGetc(void)
 {
-  while (((CMSDK_UART0->STATE & 2)==0) & ((CMSDK_USRT0->STATE & 2)==0));
+  while (((CMSDK_UART0->STATE & 2)==0));
   if ((CMSDK_UART0->STATE & 2)==2) return (CMSDK_UART0->DATA);
-  if ((CMSDK_USRT0->STATE & 2)==2) return (CMSDK_USRT0->DATA);
   else{return 0;}
 }
 

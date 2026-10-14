@@ -82,9 +82,6 @@ typedef struct
 #define CMSDK_UART0             ((CMSDK_UART_TypeDef   *) SYS_UART0_BASE   )
 #define CMSDK_UART1             ((CMSDK_UART_TypeDef   *) SYS_UART1_BASE   )
 
-#define CMSDK_USRT0             ((CMSDK_UART_TypeDef   *) SYS_USRT0_BASE   )
-#define CMSDK_USRT1             ((CMSDK_UART_TypeDef   *) SYS_USRT1_BASE   )
-
 /*----------------------------- Timer (TIMER) -------------------------------*/
 /** @addtogroup CMSDK_TIMER CMSDK Timer
   @{

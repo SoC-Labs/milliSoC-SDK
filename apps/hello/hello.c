@@ -8,6 +8,7 @@ int main(){
     UartStdOutInit();
 
     printf("Hello SoCLabs MilliSoC\n");
-    //TEST_PASS();
+
+    UartEndSimulation();
 }
 

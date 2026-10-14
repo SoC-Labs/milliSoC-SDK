@@ -54,7 +54,7 @@ BUILD_DIR    = $(SOFTWARE_DIR)/build/bootloader
 COMPILE_BIGEND = 0
 
 # Configuration
-USER_DEFINE    = -DCORTEX_M85
+USER_DEFINE    = -DCORTEX_M85 -DBOOTROM
 
 DEPS_LIST       = makefile
 
