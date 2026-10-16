@@ -1,19 +1,18 @@
-lr 0x60400000
+LOAD 0xFFFF0000
 {
-    rom_s 0x60400000
+    CODE 0xFFFF0000
     {
-        boot_exectb_mcu.o(vectors,+FIRST)
+        r5_startup.o(VECTORS,+FIRST)
         *(InRoot$$Sections)
         .ANY (+RO)
     }
 
-    ram_s 0x20000000 0x7FF0 {
-        .ANY(+RW,+ZI)
+    DATA 0x20000000 0x2000
+    {
+        * (+RW,+ZI)                         ; All RW and ZI Data
     }
 
-    ARM_LIB_HEAP +0 EMPTY 0x2000
-    { }
-
-    ARM_LIB_STACK 0x2000FFF0 EMPTY -0x8000
-    { }
+    ARM_LIB_STACKHEAP 0x20002000 EMPTY 0x2000   ; Stack and heap 
+    {
+    }
 }

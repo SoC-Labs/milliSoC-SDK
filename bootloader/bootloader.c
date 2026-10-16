@@ -1,14 +1,19 @@
-#include "exectb_mcu.h"
+//#include "exectb_mcu.h"
 #include "CMSDK.h"
 #include "uart_stdout.h"
 #include <stdio.h>
 #include "ada_dma_command_lib.h"
 #include "SL_QSPI.h"
 #include <inttypes.h>
+#include "gic400.h"
+#include "irq_map.h"
+#include "sysctrl.h"
 
 int FlashInit(void);
 int DmaMemcpy(void);
 void start_main_code(void);
+extern void enable_caches(void);
+void DMA0_IRQHandler(int num, int src);
 
 int FlashInit(void){
   if(SPI_STARTUP(SL_QSPI)==0){
@@ -27,7 +32,8 @@ int main (void)
   // STDOUT init
   UartStdOutInit();
 
-  printf("\nSoCLabs MilliSoC'26 ARM-CM85\n");
+  printf("\nSoCLabs MilliSoC'26 ARM-M85+R5\n");
+  enable_caches();
   printf("Bootloader starting...\n");
 
   FlashInit();
@@ -36,6 +42,8 @@ int main (void)
 
   printf("Start main program\n\n");
   printf("***********************\n");
+
+  sysctrl->cpu_mx_wait=0;
 
   //EnableITCM();
   __DSB();
@@ -148,19 +156,21 @@ int DmaMemcpy(void){
   Ada1DIncrCommand(command_base, command_1d_incr, 0, SECURE);
   AdaSetIntEn(ch_irqs, 0, SECURE);
 
-  NVIC_EnableIRQ(DMA_DONE_0_IRQn);
+  gic_initialise_intr(DMA350_CH0_INTR,0,1,0);
+  gic_install_handler(DMA350_CH0_INTR, &DMA0_IRQHandler);
+  gic_enable_interrupt(DMA350_CH0_INTR);
   __enable_irq();
-
   AdaEnable(0, SECURE);
   __WFI();
 
-  NVIC_DisableIRQ(DMA_DONE_0_IRQn);
+  __disable_irq();
+  gic_disable_interrupt(DMA350_CH0_INTR);
 
   return 0;
 
 }
 
-void DMA0_IRQHandler(void)
+void DMA0_IRQHandler(int num, int src)
 {
   __disable_irq();
   // Check the source of the interrupt and clear interrupts

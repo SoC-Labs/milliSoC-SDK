@@ -23,7 +23,6 @@ void CACHE_STARTUP(CG092_TypeDef *CACHE){
 
 int SPI_STARTUP(SL_AHB_QSPI_TypeDef *SL_AHB_QSPI){
     uint32_t ID;
-    NVIC_EnableIRQ(QSPI_FINISHED_IRQn);
     // Check first if warm reset
     if(SL_AHB_QSPI->CTRL == 0){
         SPI_RESET(SL_AHB_QSPI);
@@ -86,9 +85,8 @@ void QPI_SET_AHB_MODE(SL_AHB_QSPI_TypeDef *SL_AHB_QSPI){
 }
 
 void SPI_WAIT_BUSY(SL_AHB_QSPI_TypeDef *SL_AHB_QSPI){
-    __WFI();
-    // while(((SL_AHB_QSPI->STATUS)&SL_AHB_QSPI_STATUS_Busy_Msk)!=1){;}
-    // while(((SL_AHB_QSPI->STATUS)&SL_AHB_QSPI_STATUS_Busy_Msk)!=0){;}
+    while(((SL_AHB_QSPI->STATUS)&SL_AHB_QSPI_STATUS_Busy_Msk)!=1){;}
+    while(((SL_AHB_QSPI->STATUS)&SL_AHB_QSPI_STATUS_Busy_Msk)!=0){;}
 }
 
 void SPI_RESET(SL_AHB_QSPI_TypeDef *SL_AHB_QSPI){
@@ -136,7 +134,7 @@ void SET_QPI_MODE(SL_AHB_QSPI_TypeDef *SL_AHB_QSPI){
     SL_AHB_QSPI->CTRL |= SL_AHB_QSPI_CTRL_QIO_Msk;
 }
 
-void QSPI_FINISHED_IRQHandler(void){
-    SL_QSPI->STATUS=0x100;
-    return;
-}
+//void QSPI_FINISHED_IRQHandler(void){
+//    SL_QSPI->STATUS=0x100;
+//    return;
+//}
