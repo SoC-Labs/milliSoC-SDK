@@ -13,7 +13,7 @@ int FlashInit(void);
 int DmaMemcpy(void);
 void start_main_code(void);
 extern void enable_caches(void);
-void DMA0_IRQHandler(int num, int src);
+void DMA0_IRQHandler(void);
 
 int FlashInit(void){
   if(SPI_STARTUP(SL_QSPI)==0){
@@ -164,6 +164,8 @@ int DmaMemcpy(void){
   AdaSetIntEn(ch_irqs, 0, SECURE);
 
   __enable_irq();
+  vic_initialisation(DMA350_CH0_INTR,&DMA0_IRQHandler);
+
   AdaEnable(0, SECURE);
   __WFI();
 
@@ -173,8 +175,9 @@ int DmaMemcpy(void){
 
 }
 
-void DMA0_IRQHandler(int num, int src)
+void DMA0_IRQHandler(void)
 {
+	__asm volatile("stmdb	sp!,{r0-r3,r12,lr}");		// state save from compiled code
   __disable_irq();
   // Check the source of the interrupt and clear interrupts
   AdaStatType ST = AdaReadStatus(0, SECURE);
@@ -183,4 +186,9 @@ void DMA0_IRQHandler(int num, int src)
   } else {
     printf("Unknown IRQ on CH0!\n");
   }
+  __enable_irq();
+  VIC_AD->VICAddress=0x0; // clear interrupt in VIC
+	__asm volatile("ldmia	sp!,{r0-r3,r12,lr}	");	// state restore from compiled code
+	__asm volatile("subs	pc, lr, #4");			// adjust return
+  return;
 }
