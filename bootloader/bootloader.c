@@ -5,9 +5,9 @@
 #include "ada_dma_command_lib.h"
 #include "SL_QSPI.h"
 #include <inttypes.h>
-#include "gic400.h"
 #include "irq_map.h"
 #include "sysctrl.h"
+#include "vic.h"
 
 int FlashInit(void);
 int DmaMemcpy(void);
@@ -35,6 +35,13 @@ int main (void)
   printf("\nSoCLabs MilliSoC'26 ARM-M85+R5\n");
   enable_caches();
   printf("Bootloader starting...\n");
+
+// Enable vectored interrupts
+  __asm volatile("MRC     p15, 0, r0, c1, c0, 0");   // Read SCTLR
+  __asm volatile("ORR     r0, r0, #(0x1 << 24) ");   // Enable VE bit 24 to enable VIC
+  __asm volatile("MCR     p15, 0, r0, c1, c0, 0");   // Write SCTLR
+  __asm volatile("ISB ");
+
 
   FlashInit();
   printf("Preload ITCM...\n");
@@ -156,15 +163,11 @@ int DmaMemcpy(void){
   Ada1DIncrCommand(command_base, command_1d_incr, 0, SECURE);
   AdaSetIntEn(ch_irqs, 0, SECURE);
 
-  gic_initialise_intr(DMA350_CH0_INTR,0,1,0);
-  gic_install_handler(DMA350_CH0_INTR, &DMA0_IRQHandler);
-  gic_enable_interrupt(DMA350_CH0_INTR);
   __enable_irq();
   AdaEnable(0, SECURE);
   __WFI();
 
   __disable_irq();
-  gic_disable_interrupt(DMA350_CH0_INTR);
 
   return 0;
 

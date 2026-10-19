@@ -72,25 +72,14 @@ Start:
 // could also be used, unless the exception handlers are >32MB away.
 
 Vectors:
-        LDR PC, Reset_Addr
-        LDR PC, Undefined_Addr
-        LDR PC, SVC_Addr
-        LDR PC, Prefetch_Addr
-        LDR PC, Abort_Addr
-        B .                              // Reserved vector
-        LDR PC, IRQ_Addr
-        LDR PC, FIQ_Addr
-
-
-    .balign 4
-Reset_Addr:     .word Reset_Handler
-Undefined_Addr: .word Undefined_Handler
-SVC_Addr:       .word SVC_Handler
-Prefetch_Addr:  .word Prefetch_Handler
-Abort_Addr:     .word Abort_Handler
-IRQ_Addr:       .word irq_handler
-FIQ_Addr:       .word irq_handler
-
+        LDR PC, =Reset_Handler
+        LDR PC, =Undefined_Handler
+        LDR PC, =SVC_Handler
+        LDR PC, =Prefetch_Handler
+        LDR PC, =Abort_Handler
+        NOP                             // Reserved vector
+        LDR PC, =irq_handler
+        LDR PC, =irq_handler
 
 //----------------------------------------------------------------
 // Exception Handlers
@@ -105,7 +94,6 @@ Prefetch_Handler:
 Abort_Handler:
         B   Abort_Handler
 
-
 //----------------------------------------------------------------
 // Reset Handler
 //----------------------------------------------------------------
@@ -113,7 +101,32 @@ Abort_Handler:
     .global Reset_Handler
     .type Reset_Handler, "function"
 Reset_Handler:
+        MOV     r0, #0
+        MOV     r1, #0
+        MOV     r2, #0
+        MOV     r3, #0
+        MOV     r4, #0
+        MOV     r5, #0
+        MOV     r6, #0
+        MOV     r7, #0
+        MOV     r8, #0
+        MOV     r9, #0
+        MOV     r10, #0
+        MOV     r11, #0
+        MOV     r12, #0
+        MOV     r14, #0
 
+        // Ensure we are in SVC32, and more importantly clear the I and F bits
+        // to allow interrupt testing if required.
+        MSR     CPSR_c,#0x13
+
+
+        // Also set FI-bit (for low latency mode) and A-bit to
+        // enable alignment fault checking
+        MRC     p15, 0, r0, c1, c0, 0
+        ORR     r0, r0, #(1<<21)
+        ORR     r0, r0, #(1<<1)
+        MCR     p15, 0, r0, c1, c0, 0
 
 //----------------------------------------------------------------
 // Disable Branch prediction
@@ -137,9 +150,20 @@ Reset_Handler:
 // Stacks must be 8 byte aligned.
 //----------------------------------------------------------------
 
-        .global  Image$$ARM_LIB_STACKHEAP$$ZI$$Limit
-        LDR SP, =Image$$ARM_LIB_STACKHEAP$$ZI$$Limit
 
+        // Setup Stack for each exceptional mode
+        CPS    #0x11                                 
+        LDR    SP, =Image$$FIQ_STACK$$ZI$$Limit      
+        CPS    #0x12                                 
+        LDR    SP, =Image$$IRQ_STACK$$ZI$$Limit      
+        CPS    #0x13                                 
+        LDR    SP, =Image$$SVC_STACK$$ZI$$Limit      
+        CPS    #0x17                                 
+        LDR    SP, =Image$$ABT_STACK$$ZI$$Limit      
+        CPS    #0x1B                                 
+        LDR    SP, =Image$$UND_STACK$$ZI$$Limit      
+        CPS    #0x1F                                 
+        LDR    SP, =Image$$ARM_LIB_STACK$$ZI$$Limit  
 
 //----------------------------------------------------------------
 // Cache invalidation
@@ -212,8 +236,7 @@ Reset_Handler:
 
         // Import linker symbols to get region base addresses
     .global  Image$$CODE$$Base
-    .global  Image$$DATA$$Base
-    .global  Image$$ARM_LIB_STACKHEAP$$Base
+    .global  Image$$RW_DATA$$Base
 
         // Region 0 - Code
         MOV     r1, #0
@@ -230,7 +253,7 @@ Reset_Handler:
         ADD     r1, r1, #1
         MCR     p15, 0, r1, c6, c2, 0       // Set memory region number register
         ISB                                 // Ensure subsequent insts execute wrt this region
-        LDR     r2, =Image$$DATA$$Base
+        LDR     r2, =Image$$RW_DATA$$Base
         MCR     p15, 0, r2, c6, c1, 0       // Set region base address register
         LDR     r2, =0x0  |  (Region_16K << 1)  |  Region_Enable
         MCR     p15, 0, r2, c6, c1, 2       // Set region size & enable register
@@ -241,7 +264,7 @@ Reset_Handler:
         ADD     r1, r1, #1
         MCR     p15, 0, r1, c6, c2, 0       // Set memory region number register
         ISB                                 // Ensure subsequent insts execute wrt this region
-        LDR     r2, =Image$$ARM_LIB_STACKHEAP$$Base
+        LDR     r2, =0x20000000
         MCR     p15, 0, r2, c6, c1, 0       // Set region base address register
         LDR     r2, =0x0  |  (Region_16K << 1)  |  Region_Enable
         MCR     p15, 0, r2, c6, c1, 2       // Set region size & enable register
@@ -267,7 +290,7 @@ Reset_Handler:
         MCR     p15, 0, r2, c6, c1, 0
         LDR     r2, =0x0  |  (Region_128K  << 1)  |  Region_Enable
         MCR     p15, 0, r2, c6, c1, 2       // Set region size & enable register
-        LDR     r2, =0x0  |  (Full_Access << 8)  |  Device_nShared
+        LDR     r2, =0x0  |  (Full_Access << 8)  |  Device_nShared  |  Execute_Never
         MCR     p15, 0, r2, c6, c1, 4       // Set region access control register
 
         // Region 5 - Sys config
@@ -276,9 +299,9 @@ Reset_Handler:
         ISB
         LDR     r2, =0x44000000
         MCR     p15, 0, r2, c6, c1, 0
-        LDR     r2, =0x0  |  (Region_256K  << 1)  |  Region_Enable
+        LDR     r2, =0x0  |  (Region_512K  << 1)  |  Region_Enable
         MCR     p15, 0, r2, c6, c1, 2       // Set region size & enable register
-        LDR     r2, =0x0  |  (Full_Access << 8)  |  Device_nShared
+        LDR     r2, =0x0  |  (Full_Access << 8)  |  Device_nShared  |  Execute_Never
         MCR     p15, 0, r2, c6, c1, 4       // Set region access control register
 
         // Disable all higher priority regions (assumes unified regions, which is always true for Cortex-R5)
@@ -345,4 +368,3 @@ enable_caches:
 
         BX    lr
     .cfi_endproc
-

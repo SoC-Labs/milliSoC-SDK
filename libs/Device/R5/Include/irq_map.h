@@ -16,105 +16,102 @@
 // -----------------------------------------------------------------------------
 
 #define NUM_SHD_INTR                    128
-#define CNTH_INTR                       26
-#define CNTV_INTR                       27
-#define CNTPS_INTR                      29
-#define CNTPNS_INTR                     30
 //SPIs
-#define DMA350_CH0_INTR                 32
-#define DMA350_CH1_INTR                 33
-#define DMA350_CH2_INTR                 34
-#define DMA350_CH3_INTR                 35
-#define DMA350_COM_INTR                 36
+#define DMA350_CH0_INTR                 00
+#define DMA350_CH1_INTR                 01
+#define DMA350_CH2_INTR                 02
+#define DMA350_CH3_INTR                 03
+#define DMA350_COM_INTR                 04
 
-#define GPIO0_COMB_INTR                 37
-#define GPIO1_COMB_INTR                 38
+#define QSPI_INTR                       05
 
-#define GPIO0_0_INTR                    39
-#define GPIO0_1_INTR                    40
-#define GPIO0_2_INTR                    41
-#define GPIO0_3_INTR                    42
-#define GPIO0_4_INTR                    43
-#define GPIO0_5_INTR                    44
-#define GPIO0_6_INTR                    45
-#define GPIO0_7_INTR                    46
-#define GPIO0_8_INTR                    47
-#define GPIO0_9_INTR                    48
-#define GPIO0_10_INTR                   49
-#define GPIO0_11_INTR                   50
-#define GPIO0_12_INTR                   51
-#define GPIO0_13_INTR                   52
-#define GPIO0_14_INTR                   53
-#define GPIO0_15_INTR                   54
+#define GPIO0_COMB_INTR                 06
+#define GPIO1_COMB_INTR                 07
 
-#define GPIO1_0_INTR                    55
-#define GPIO1_1_INTR                    56
-#define GPIO1_2_INTR                    57
-#define GPIO1_3_INTR                    58
-#define GPIO1_4_INTR                    59
-#define GPIO1_5_INTR                    60
-#define GPIO1_6_INTR                    61
-#define GPIO1_7_INTR                    62
-#define GPIO1_8_INTR                    63
-#define GPIO1_9_INTR                    64
-#define GPIO1_10_INTR                   65
-#define GPIO1_11_INTR                   66
-#define GPIO1_12_INTR                   67
-#define GPIO1_13_INTR                   68
-#define GPIO1_14_INTR                   69
-#define GPIO1_15_INTR                   70
+#define GPIO0_0_INTR                    08
+#define GPIO0_1_INTR                    09
+#define GPIO0_2_INTR                    10
+#define GPIO0_3_INTR                    11
+#define GPIO0_4_INTR                    12
+#define GPIO0_5_INTR                    13
+#define GPIO0_6_INTR                    14
+#define GPIO0_7_INTR                    15
+#define GPIO0_8_INTR                    16
+#define GPIO0_9_INTR                    17
+#define GPIO0_10_INTR                   18
+#define GPIO0_11_INTR                   20
+#define GPIO0_12_INTR                   21
+#define GPIO0_13_INTR                   22
+#define GPIO0_14_INTR                   23
+#define GPIO0_15_INTR                   24
 
-#define TIMER0_INTR                     71
-#define TIMER1_INTR                     72
+#define GPIO1_0_INTR                    25
+#define GPIO1_1_INTR                    26
+#define GPIO1_2_INTR                    27
+#define GPIO1_3_INTR                    28
+#define GPIO1_4_INTR                    29
+#define GPIO1_5_INTR                    30
+#define GPIO1_6_INTR                    31
+#define GPIO1_7_INTR                    32
+#define GPIO1_8_INTR                    33
+#define GPIO1_9_INTR                    34
+#define GPIO1_10_INTR                   35
+#define GPIO1_11_INTR                   36
+#define GPIO1_12_INTR                   38
+#define GPIO1_13_INTR                   39
+#define GPIO1_14_INTR                   40
+#define GPIO1_15_INTR                   41
 
-#define DUALTIMER1_INTR                 73
-#define DUALTIMER2_INTR                 74
-#define DUALTIMER_COM_INTR              75
+#define TIMER0_INTR                     42
+#define TIMER1_INTR                     43
 
-#define USRT0_TX_INTR                   76
-#define USRT0_RX_INTR                   77
-#define USRT0_TX_OVR_INTR               78
-#define USRT0_RX_OVR_INTR               79
-#define USRT0_COMB_INTR                 80
+#define DUALTIMER1_INTR                 44
+#define DUALTIMER2_INTR                 45
+#define DUALTIMER_COM_INTR              46
 
-#define USRT1_TX_INTR                   81
-#define USRT1_RX_INTR                   82
-#define USRT1_TX_OVR_INTR               83
-#define USRT1_RX_OVR_INTR               84
-#define USRT1_COMB_INTR                 85
+#define USRT0_TX_INTR                   47
+#define USRT0_RX_INTR                   48
+#define USRT0_TX_OVR_INTR               49
+#define USRT0_RX_OVR_INTR               50
+#define USRT0_COMB_INTR                 51
 
-#define UART0_TX_INTR                   86
-#define UART0_RX_INTR                   87
-#define UART0_TX_OVR_INTR               88
-#define UART0_RX_OVR_INTR               89
-#define UART0_COMB_INTR                 90
+#define USRT1_TX_INTR                   52
+#define USRT1_RX_INTR                   53
+#define USRT1_TX_OVR_INTR               54
+#define USRT1_RX_OVR_INTR               55
+#define USRT1_COMB_INTR                 56
 
-#define UART1_TX_INTR                   91
-#define UART1_RX_INTR                   92
-#define UART1_TX_OVR_INTR               93
-#define UART1_RX_OVR_INTR               94
-#define UART1_COMB_INTR                 95
+#define UART0_TX_INTR                   57
+#define UART0_RX_INTR                   58
+#define UART0_TX_OVR_INTR               59
+#define UART0_RX_OVR_INTR               60
+#define UART0_COMB_INTR                 61
 
-#define WATCHDOG_INTR                   96
-#define RTC_INTR                        97
+#define UART1_TX_INTR                   62
+#define UART1_RX_INTR                   63
+#define UART1_TX_OVR_INTR               64
+#define UART1_RX_OVR_INTR               65
+#define UART1_COMB_INTR                 66
 
-#define SPI_COMB_INTR                   98
-#define SPI_RX_INTR                     99
-#define SPI_TX_INTR                     100
-#define SPI_RX_OVERR_INTR               101
-#define SPI_TX_TO_INTR                  102  
+#define WATCHDOG_INTR                   67
+#define RTC_INTR                        68
 
-#define PL011_UARTMSINTR                103
-#define PL011_UARTRXINTR                104
-#define PL011_UARTTXINTR                105
-#define PL011_UARTRTINTR                106
-#define PL011_UARTEINTR                 107
-#define PL011_UARTINTR                  108
+#define SPI_COMB_INTR                   69
+#define SPI_RX_INTR                     70
+#define SPI_TX_INTR                     71
+#define SPI_RX_OVERR_INTR               72
+#define SPI_TX_TO_INTR                  73  
 
-#define QSPI_INTR                       109
+#define PL011_UARTMSINTR                74
+#define PL011_UARTRXINTR                75
+#define PL011_UARTTXINTR                76
+#define PL011_UARTRTINTR                77
+#define PL011_UARTEINTR                 78
+#define PL011_UARTINTR                  79
 
-#define EXP_DMA350_CH0_INTR             110
-#define EXP_DMA350_CH1_INTR             111
-#define EXP_DMA350_CH2_INTR             112
-#define EXP_DMA350_CH3_INTR             113
-#define EXP_DMA350_CMB_INTR             114
+
+#define EXP_DMA350_CH0_INTR             80
+#define EXP_DMA350_CH1_INTR             81
+#define EXP_DMA350_CH2_INTR             82
+#define EXP_DMA350_CH3_INTR             83
+#define EXP_DMA350_CMB_INTR             84

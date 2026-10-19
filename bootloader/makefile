@@ -160,7 +160,7 @@ $(BUILD_DIR)/$(STARTUP_FILE).o : $(STARTUP_DIR)/$(STARTUP_FILE).s $(DEPS_LIST)
 $(BUILD_DIR)/SL_QPSI.o: $(SOFTWARE_DIR)/libs/Drivers/Source/SL_QSPI.c $(DEPS_LIST)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
 
-$(BUILD_DIR)/gic400.o: $(SOFTWARE_DIR)/libs/Drivers/Source/gic400.c $(DEPS_LIST)
+$(BUILD_DIR)/vic.o: $(SOFTWARE_DIR)/libs/Drivers/Source/vic.c $(DEPS_LIST)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
 
 
@@ -173,8 +173,8 @@ $(BUILD_DIR)/retarget.o : $(SOFTWARE_DIR)/libs/common/retarget/retarget.c $(DEPS
 $(BUILD_DIR)/uart_stdout.o : $(SOFTWARE_DIR)/libs/common/retarget/uart_stdout.c $(DEPS_LIST)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
 
-$(BUILD_DIR)/$(BOOTLOADER).ELF : $(BUILD_DIR)/$(BOOTLOADER).o $(BUILD_DIR)/$(STARTUP_FILE).o $(BUILD_DIR)/retarget.o $(BUILD_DIR)/uart_stdout.o $(BUILD_DIR)/ada_dma_command_lib.o $(BUILD_DIR)/SL_QPSI.o $(BUILD_DIR)/gic400.o $(DEPS_LIST)
-	armlink $(ARM_LINK_OPTIONS) $(BUILD_DIR)/$(BOOTLOADER).o  $(BUILD_DIR)/$(STARTUP_FILE).o $(BUILD_DIR)/retarget.o $(BUILD_DIR)/uart_stdout.o $(BUILD_DIR)/ada_dma_command_lib.o $(BUILD_DIR)/SL_QPSI.o $(BUILD_DIR)/gic400.o -o $@
+$(BUILD_DIR)/$(BOOTLOADER).ELF : $(BUILD_DIR)/$(BOOTLOADER).o $(BUILD_DIR)/$(STARTUP_FILE).o $(BUILD_DIR)/retarget.o $(BUILD_DIR)/uart_stdout.o $(BUILD_DIR)/ada_dma_command_lib.o $(BUILD_DIR)/SL_QPSI.o $(BUILD_DIR)/vic.o $(DEPS_LIST)
+	armlink $(ARM_LINK_OPTIONS) $(BUILD_DIR)/$(BOOTLOADER).o  $(BUILD_DIR)/$(STARTUP_FILE).o $(BUILD_DIR)/retarget.o $(BUILD_DIR)/uart_stdout.o $(BUILD_DIR)/ada_dma_command_lib.o $(BUILD_DIR)/SL_QPSI.o $(BUILD_DIR)/vic.o -o $@
 
 $(BUILD_DIR)/$(BOOTLOADER).hex : $(BUILD_DIR)/$(BOOTLOADER).ELF $(DEPS_LIST)
 	fromelf --vhx --8x1 $< --output $@

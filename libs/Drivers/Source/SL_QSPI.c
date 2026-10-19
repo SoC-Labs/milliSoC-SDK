@@ -1,5 +1,7 @@
 
 #include "SL_QSPI.h"
+#include "irq_map.h"
+#include "vic.h"
 
 uint8_t SET_QIO_MODE_CMD = 0x38;
 
@@ -12,16 +14,20 @@ void QPI_READ_WORDS_no_data(SL_AHB_QSPI_TypeDef *SL_AHB_QSPI, uint32_t addr, uin
 void QPI_SET_CONT_READ(SL_AHB_QSPI_TypeDef *SL_AHB_QSPI);
 void QPI_SET_CONT_READ_MICRON(SL_AHB_QSPI_TypeDef *SL_AHB_QSPI);
 void QPI_SET_AHB_MODE(SL_AHB_QSPI_TypeDef *SL_AHB_QSPI);
+void QSPI_FINISHED_IRQHandler(void);
 
 void CACHE_STARTUP(CG092_TypeDef *CACHE);
 
 void CACHE_STARTUP(CG092_TypeDef *CACHE){
     CACHE->CCR=0;
     CACHE->CCR=0x1; //DON'T USE PREFETCH
-    while((CACHE->SR)&0x3 != 2){;}
+    while(((CACHE->SR)&0x3) != 2){;}
 }
 
 int SPI_STARTUP(SL_AHB_QSPI_TypeDef *SL_AHB_QSPI){
+    vic_initialisation(QSPI_INTR,&QSPI_FINISHED_IRQHandler);
+    __enable_irq();
+    
     uint32_t ID;
     // Check first if warm reset
     if(SL_AHB_QSPI->CTRL == 0){
@@ -47,10 +53,12 @@ int SPI_STARTUP(SL_AHB_QSPI_TypeDef *SL_AHB_QSPI){
                 QPI_READ_WORDS_no_data(SL_AHB_QSPI, 0x00001000, 1, 4, 1);
                 QPI_SET_AHB_MODE(SL_AHB_QSPI);        
             }
+            __disable_irq();
             return 0;
         }
     }
     else {
+        __disable_irq();
         return 0;
     }
 }
@@ -85,8 +93,9 @@ void QPI_SET_AHB_MODE(SL_AHB_QSPI_TypeDef *SL_AHB_QSPI){
 }
 
 void SPI_WAIT_BUSY(SL_AHB_QSPI_TypeDef *SL_AHB_QSPI){
-    while(((SL_AHB_QSPI->STATUS)&SL_AHB_QSPI_STATUS_Busy_Msk)!=1){;}
-    while(((SL_AHB_QSPI->STATUS)&SL_AHB_QSPI_STATUS_Busy_Msk)!=0){;}
+    //while(((SL_AHB_QSPI->STATUS)&SL_AHB_QSPI_STATUS_Busy_Msk)!=1){;}
+    //while(((SL_AHB_QSPI->STATUS)&SL_AHB_QSPI_STATUS_Busy_Msk)!=0){;}
+    __WFI();
 }
 
 void SPI_RESET(SL_AHB_QSPI_TypeDef *SL_AHB_QSPI){
@@ -134,7 +143,11 @@ void SET_QPI_MODE(SL_AHB_QSPI_TypeDef *SL_AHB_QSPI){
     SL_AHB_QSPI->CTRL |= SL_AHB_QSPI_CTRL_QIO_Msk;
 }
 
-//void QSPI_FINISHED_IRQHandler(void){
-//    SL_QSPI->STATUS=0x100;
-//    return;
-//}
+void QSPI_FINISHED_IRQHandler(void){
+	__asm volatile("stmdb	sp!,{r0-r3,r12,lr}");		// state save from compiled code
+    SL_QSPI->STATUS=0x100;
+    VIC_AD->VICAddress=0x0; // clear interrupt in VIC
+	__asm volatile("ldmia	sp!,{r0-r3,r12,lr}	");	// state restore from compiled code
+	__asm volatile("subs	pc, lr, #4");			// adjust return
+    return;
+}
