@@ -8,9 +8,10 @@
 #include "irq_map.h"
 #include "sysctrl.h"
 #include "vic.h"
+#include <stdint.h>
 
 int FlashInit(void);
-int DmaMemcpy(void);
+int DmaMemcpy(uint32_t addr, uint32_t size, uint32_t dest);
 void start_main_code(void);
 extern void enable_caches(void);
 void DMA0_IRQHandler(void);
@@ -29,6 +30,8 @@ int FlashInit(void){
 
 int main (void)
 {
+  uint32_t M_image_start, M_image_size;
+  uint32_t R_image_start, R_image_size;
   // STDOUT init
   UartStdOutInit();
 
@@ -45,7 +48,12 @@ int main (void)
 
   FlashInit();
   printf("Preload ITCM...\n");
-  DmaMemcpy();
+  M_image_start=*(volatile uint32_t *) FLASH_BASE;
+  M_image_size =*(volatile uint32_t *) (FLASH_BASE+0x04);
+  DmaMemcpy(M_image_start + FLASH_BASE, M_image_size, 0x00000000);
+  R_image_start=*(volatile uint32_t *) (FLASH_BASE+0x08);
+  R_image_size =*(volatile uint32_t *) (FLASH_BASE+0x0C);
+  DmaMemcpy(R_image_start + FLASH_BASE, R_image_size, 0x80000000);
 
   printf("Start main program\n\n");
   printf("***********************\n");
@@ -65,15 +73,19 @@ int main (void)
 
 void start_main_code(void){
   asm volatile(
-  "MOVS  R0,#0\n\t"
-  "LDR   R1,[R0]\n\t"     //; Get initial MSP value
-  "MOV   SP, R1\n\t"
-  "LDR   R1,[R0, #4]\n\t" //; Get initial PC value
-  "BX    R1\n\t"
+  "CPSID   if \n\t" // Mask IRQ and FIQ
+  "DSB  \n\t"       // Complete prior memory accesses
+  "MOV     r0, #0\n\t"
+  "MCR     p15, 0, r0, c7, c5, 0\n\t"//   ; Invalidate I-cache
+  "DSB\n\t"
+  "ISB\n\t"
+  "LDR     r0, =0x00000000\n\t"
+  "BX      r0\n\t"
+  "B       . \n\t"
   );
 }
 
-int DmaMemcpy(void){
+int DmaMemcpy(uint32_t addr, uint32_t size, uint32_t dest){
 // Define structures for the tests
   // Note: Command and channel parameters can be modified to the desired settings
 
@@ -135,10 +147,10 @@ int DmaMemcpy(void){
   // The command uses the defined FLASH_BASE as source address, ITCM_BASE as destination address
   // the defined DATA_SIZE as source and destination data (X)size and 64 bit transaction size
   AdaBaseCommandType command_base = {
-    .SRCADDR  = FLASH_BASE, // Read from M0 interface
-    .DESADDR  = ITCM_BASE, // Write to M0 interface
-    .SRCXSIZE = ITCM_SIZE/8,
-    .DESXSIZE = ITCM_SIZE/8,
+    .SRCADDR  = addr, // Read from M0 interface
+    .DESADDR  = dest, // Write to M0 interface
+    .SRCXSIZE = size*4,
+    .DESXSIZE = size*4,
     .TRANSIZE = BITS_64
   };
 

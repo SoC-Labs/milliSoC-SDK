@@ -27,7 +27,7 @@ void CACHE_STARTUP(CG092_TypeDef *CACHE){
 int SPI_STARTUP(SL_AHB_QSPI_TypeDef *SL_AHB_QSPI){
     vic_initialisation(QSPI_INTR,&QSPI_FINISHED_IRQHandler);
     __enable_irq();
-    
+    SL_AHB_QSPI->CLK_DIV=2;
     uint32_t ID;
     // Check first if warm reset
     if(SL_AHB_QSPI->CTRL == 0){

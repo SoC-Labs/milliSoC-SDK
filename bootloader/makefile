@@ -104,7 +104,7 @@ ARM_CC_OPTIONS   = $(ARM_TARGET) -c -marm -mfpu=none -I $(DEVICE_DIR)/Include -I
 		   -I $(SOFTWARE_DIR)/libs/common/retarget $(USER_DEFINE)
 
 ARM_ASM_OPTIONS  = -g
-ARM_LINK_OPTIONS += --scatter /home/dwn1c21/SoC-Labs/millisoc_project/millisoc_sdk/scatter/M85/armclang_bootrom.scat
+ARM_LINK_OPTIONS += --scatter /home/dwn1c21/SoC-Labs/millisoc_project/millisoc_sdk/scatter/R5/armclang_bootrom.scat
 
 
 ifeq ($(COMPILE_BIGEND),1)

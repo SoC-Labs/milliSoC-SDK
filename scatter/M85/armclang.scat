@@ -2,7 +2,7 @@ lr 0x00000000
 {
     rom_s 0x00000000
     {
-        boot_exectb_mcu.o(vectors,+FIRST)
+        boot_exectb_mcu_M.o(vectors,+FIRST)
         *(InRoot$$Sections)
         .ANY (+RO)
     }

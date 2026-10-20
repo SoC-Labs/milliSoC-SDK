@@ -1,0 +1,62 @@
+LOAD 0x0
+{
+    CODE 0x0
+    {
+        hello_R.o(.text.main,+FIRST)
+        *(InRoot$$Sections)
+        .ANY (+RO)
+    }
+
+    RW_DATA 0x20000000 0x00001000
+    { * (+RW) }                   ; Application RW data (.data)
+    
+    ZI_DATA (0x20000000+
+            0x00001000) 0x00000F00
+    { * (+ZI) }                   ; Application ZI data (.bss)
+    
+    ARM_LIB_HEAP  (0x20000000
+                    +0x00001000
+                    +0x00000F00)    EMPTY 0x00000800        ; Heap region growing up
+    { }
+        
+    ARM_LIB_STACK (0x20000000
+                    +0x00004000       
+                    -0x00000100
+                    -0x00000100
+                    -0x00000100
+                    -0x00000100
+                    -0x00000100) EMPTY -0x00000400      ; Stack region growing down
+    { }              
+                    
+    UND_STACK     (0x20000000
+                    +0x00004000
+                    -0x00000100
+                    -0x00000100
+                    -0x00000100
+                    -0x00000100) EMPTY -0x00000100  ; UND mode stack
+    { }
+    
+    ABT_STACK     (0x20000000
+                    +0x00004000
+                    -0x00000100
+                    -0x00000100
+                    -0x00000100) EMPTY -0x00000100  ; ABT mode stack
+    { }
+    
+    SVC_STACK     (0x20000000
+                    +0x00004000
+                    -0x00000100
+                    -0x00000100) EMPTY -0x00000100  ; SVC mode stack
+    { }  
+    
+    IRQ_STACK     (0x20000000
+                    +0x00004000
+                    -0x00000100) EMPTY -0x00000100  ; IRQ mode stack
+    { }  
+    
+    FIQ_STACK     (0x20000000
+                    +0x00004000)       EMPTY -0x00000100  ; FIQ mode stack
+    { }
+
+}
+

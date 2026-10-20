@@ -230,9 +230,10 @@ Reset_Handler:
 // Region 0: Code          Base = 0x48000000  Size = 32KB   Normal  Non-shared  Read-only    Executable
 // Region 1: Data          Base = 0x48008000  Size = 16KB   Normal  Non-shared  Full access  Not Executable
 // Region 2: Stack/Heap    Base = 0x4800C000  Size = 16KB   Normal  Non-shared  Full access  Not Executable
-// Region 3: Vectors       Base = 0x00000000  Size =  1KB   Normal  Non-shared  Full access  Executable
+// Region 3: ITCM          Base = 0x00000000  Size = 16KB   Normal  Non-shared  Full access  Executable
 // Region 4: Peripheral    Base = 0x40000000  Size = 128Kb  Device  Non-Shared  Full access  Not Excecutable
 // Region 5: SYS config    Base = 0x44000000  Size = 256Kb  Device  Non-Shared  Full access  Not Executable
+// Region 6: Flash         Base = 0x60000000  Size = 2MB    Normal  Non-shared  Read-only    Excecutable
 
         // Import linker symbols to get region base addresses
     .global  Image$$CODE$$Base
@@ -277,7 +278,7 @@ Reset_Handler:
         ISB                                 // Ensure subsequent insts execute wrt this region
         LDR     r2, =0
         MCR     p15, 0, r2, c6, c1, 0       // Set region base address register
-        LDR     r2, =0x0  |  (Region_1K  << 1)  |  Region_Enable
+        LDR     r2, =0x0  |  (Region_16K  << 1)  |  Region_Enable
         MCR     p15, 0, r2, c6, c1, 2       // Set region size & enable register
         LDR     r2, =0x0  |  (Full_Access << 8)  |  Normal_nShared
         MCR     p15, 0, r2, c6, c1, 4       // Set region access control register
@@ -302,6 +303,17 @@ Reset_Handler:
         LDR     r2, =0x0  |  (Region_512K  << 1)  |  Region_Enable
         MCR     p15, 0, r2, c6, c1, 2       // Set region size & enable register
         LDR     r2, =0x0  |  (Full_Access << 8)  |  Device_nShared  |  Execute_Never
+        MCR     p15, 0, r2, c6, c1, 4       // Set region access control register
+
+        // Region 6 - Flash 
+        ADD     r1, r1, #1
+        MCR     p15, 0, r1, c6, c2, 0
+        ISB
+        LDR     r2, =0x60000000
+        MCR     p15, 0, r2, c6, c1, 0
+        LDR     r2, =0x0  |  (Region_2M  << 1)  |  Region_Enable
+        MCR     p15, 0, r2, c6, c1, 2       // Set region size & enable register
+        LDR     r2, =0x0  |  (Read_Only << 8)  |  Normal_nShared
         MCR     p15, 0, r2, c6, c1, 4       // Set region access control register
 
         // Disable all higher priority regions (assumes unified regions, which is always true for Cortex-R5)

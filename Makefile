@@ -23,7 +23,9 @@
 # Cortex-M System Design Kit software compilation make file
 #
 #-----------------------------------------------------------------------------
-CPU_TYPE ?= CM7
+CPU_TYPE ?= CM85
+CPU_R_TYPE ?= CR5
+
 TARGET = arm-none-eabi
 # Shared software directory
 SOFTWARE_DIR = $(CURDIR)
@@ -36,6 +38,10 @@ else ifeq ($(CPU_TYPE), CM55)
 	DEVICE_DIR   = $(SOFTWARE_DIR)/libs/Device/M55/cm7ikmcu
 else ifeq ($(CPU_TYPE), CM85)
 	DEVICE_DIR   = $(SOFTWARE_DIR)/libs/Device/M85/exectb_mcu
+endif
+
+ifeq ($(CPU_R_TYPE),CR5)
+	DEVICE_R_DIR   = $(SOFTWARE_DIR)/libs/Device/R5
 endif
 
 # Program file
@@ -54,19 +60,15 @@ else ifeq ($(CPU_TYPE), CM85)
 	USER_DEFINE    = -DCORTEX_M85
 endif
 
+ifeq ($(CPU_R_TYPE), CR5)
+	USER_R_DEFINE    = -DCORTEX_R5
+endif
+
 
 DEPS_LIST       = 
 
 # Tool chain : ds5 / gcc / keil
 TOOL_CHAIN      = ds6
-
-ifeq ($(TOOL_CHAIN),ds5)
-	ifeq ($(CPU_TYPE),CM55)
-    	CPU_OPTS        = --cpu=Cortex-M55.fp.sp
-	else ifeq ($(CPU_TYPE),CM85)
-    	CPU_OPTS        = --cpu=Cortex-M85.fp.sp
-	endif
-endif
 
 ifeq ($(TOOL_CHAIN),ds6)
 	ifeq ($(CPU_TYPE),CM55)
@@ -76,8 +78,10 @@ ifeq ($(TOOL_CHAIN),ds6)
 	endif
 endif
 
-ifeq ($(TOOL_CHAIN),gcc)
-    CPU_OPTS        = -mcpu=cortex-m7
+ifeq ($(TOOL_CHAIN),ds6)
+	ifeq ($(CPU_R_TYPE),CR5)
+		CPU_R_OPTS        = -mcpu=cortex-r5
+	endif
 endif
 
 
@@ -133,11 +137,17 @@ endif
 ARM_CC_OPTIONS   = $(ARM_TARGET) -c -D_FPU -mthumb -I $(DEVICE_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/libs/common/CMSDK \
 		   -I $(SOFTWARE_DIR)/libs/Drivers/Include  \
 		   -I $(SOFTWARE_DIR)/libs/common/retarget $(USER_DEFINE)
+
+ARM_CC_R_OPTIONS   = $(ARM_TARGET) -c -marm -I $(DEVICE_R_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/libs/common/CMSDK \
+		   -I $(SOFTWARE_DIR)/libs/Drivers/Include  \
+		   -I $(SOFTWARE_DIR)/libs/common/retarget $(USER_R_DEFINE)
+
 ARM_ASM_OPTIONS  = 
 ARM_LINK_OPTIONS = "--keep=$(STARTUP_FILE).o(vectors)" "--first=$(STARTUP_FILE).o(vectors)" \
 		--rw_base 0x20000000 --ro_base 0x000000 --map --datacompressor=off --info=inline
 
-ARM_LINK_OPTIONS += --scatter /home/dwn1c21/SoC-Labs/millisoc_project/millisoc_sdk/scatter/M85/armclang.scat
+ARM_LINK_M_OPTIONS += --scatter /home/dwn1c21/SoC-Labs/millisoc_project/millisoc_sdk/scatter/M85/armclang.scat
+ARM_LINK_R_OPTIONS += --scatter /home/dwn1c21/SoC-Labs/millisoc_project/millisoc_sdk/scatter/R5/armclang.scat
 
 ifeq ($(COMPILE_BIGEND),1)
  # Big Endian
@@ -154,93 +164,74 @@ ifeq ($(COMPILE_MICROLIB),1)
 endif
 
 # ---------------------------------------------------------------------------------------
-# gcc options
-
-GNG_CC      = $(TARGET)-gcc
-GNU_OBJDUMP = $(TARGET)-objdump
-GNU_OBJCOPY = $(TARGET)-objcopy
-
-LINKER_SCRIPT_PATH = $(SOFTWARE_DIR)/common/scripts
-LINKER_SCRIPT = $(LINKER_SCRIPT_PATH)/cmsdk_cm0.ld
-
-# GCC optimization specs
-GCC_SPEC_OPTS := --specs=nano.specs -Wl,--gc-sections
-
-GNU_CC_FLAGS = -g -O3 -mthumb $(CPU_OPTS) $(GCC_SPEC_OPTS)
-
-ifeq ($(COMPILE_BIGEND),1)
- # Big Endian
- GNU_CC_FLAGS   += -mbig-endian
-endif
-
-# ---------------------------------------------------------------------------------------
 all: all_$(TOOL_CHAIN)
 
 # ---------------------------------------------------------------------------------------
 # DS-5
 all_ds5 : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).hex $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).lst
-all_ds6 : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).hex $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).lst
+all_ds6 : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).hex $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.lst $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_M.lst
 
-$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).o :  $(TEST_DIR)/$(TESTNAME).c $(DEPS_LIST)
+
+$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).hex: $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.hex $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_M.hex
+	python3 $(SOFTWARE_DIR)/tools/concat_hex.py -m $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_M.hex -r $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.hex -o $@
+# ---------------------------------------------------------------------------------------
+# Cortex M class build
+$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_M.o :  $(TEST_DIR)/$(TESTNAME)_M.c $(DEPS_LIST)
 	mkdir -p $(BUILD_DIR)/$(TESTNAME)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_OPTS) $< -o  $@
 
-$(BUILD_DIR)/common/$(SYSTEM_FILE).o : $(DEVICE_DIR)/Source/$(SYSTEM_FILE).c $(DEPS_LIST)
+$(BUILD_DIR)/common/$(SYSTEM_FILE)_M.o : $(DEVICE_DIR)/Source/$(SYSTEM_FILE).c $(DEPS_LIST)
 	mkdir -p $(BUILD_DIR)/common
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_OPTS) $< -o  $@
 
-$(BUILD_DIR)/common/retarget.o : $(SOFTWARE_DIR)/libs/common/retarget/retarget.c $(DEPS_LIST)
+$(BUILD_DIR)/common/retarget_M.o : $(SOFTWARE_DIR)/libs/common/retarget/retarget.c $(DEPS_LIST)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_OPTS) $< -o  $@
 
-$(BUILD_DIR)/common/uart_stdout.o : $(SOFTWARE_DIR)/libs/common/retarget/uart_stdout.c $(DEPS_LIST)
+$(BUILD_DIR)/common/uart_stdout_M.o : $(SOFTWARE_DIR)/libs/common/retarget/uart_stdout.c $(DEPS_LIST)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_OPTS) $< -o  $@
 
-$(BUILD_DIR)/common/$(STARTUP_FILE).o : $(STARTUP_DIR)/$(STARTUP_FILE).c $(DEPS_LIST)
+$(BUILD_DIR)/common/$(STARTUP_FILE)_M.o : $(STARTUP_DIR)/$(STARTUP_FILE).c $(DEPS_LIST)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_OPTS) $< -o  $@
 
-$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).ELF : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).o $(BUILD_DIR)/common/$(SYSTEM_FILE).o $(BUILD_DIR)/common/$(STARTUP_FILE).o $(BUILD_DIR)/common/retarget.o $(BUILD_DIR)/common/uart_stdout.o
-	armlink $(ARM_LINK_OPTIONS) $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).o $(BUILD_DIR)/common/$(SYSTEM_FILE).o  $(BUILD_DIR)/common/$(STARTUP_FILE).o $(BUILD_DIR)/common/retarget.o $(BUILD_DIR)/common/uart_stdout.o -o $@
+$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_M.ELF : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_M.o $(BUILD_DIR)/common/$(SYSTEM_FILE)_M.o $(BUILD_DIR)/common/$(STARTUP_FILE)_M.o $(BUILD_DIR)/common/retarget_M.o $(BUILD_DIR)/common/uart_stdout_M.o
+	armlink $(ARM_LINK_M_OPTIONS) $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_M.o $(BUILD_DIR)/common/$(SYSTEM_FILE)_M.o  $(BUILD_DIR)/common/$(STARTUP_FILE)_M.o $(BUILD_DIR)/common/retarget_M.o $(BUILD_DIR)/common/uart_stdout_M.o -o $@
 
-$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).hex : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).ELF
+$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_M.hex : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_M.ELF
 	fromelf --bin $< --output $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).bin
 	fromelf --vhx --8x1 $< --output $@
 
-$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).lst : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).ELF
+$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_M.lst : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_M.ELF
 	fromelf -c -d -e -s -z -v $< --output $@
 
 # ---------------------------------------------------------------------------------------
-# gcc
-all_gcc:
-	$(GNG_CC) $(GNU_CC_FLAGS) $(STARTUP_DIR)/$(STARTUP_FILE).s \
-		$(TESTNAME).c \
-		$(SOFTWARE_DIR)/common/retarget/retarget.c \
-		$(SOFTWARE_DIR)/common/retarget/uart_stdout.c \
-		$(DEVICE_DIR)/Source/$(SYSTEM_FILE).c \
-		-I $(DEVICE_DIR)/Include -I $(CORE_DIR) \
-                -I $(SOFTWARE_DIR)/common/retarget  \
-		-L $(LINKER_SCRIPT_PATH) \
-		-D__STACK_SIZE=0x200 \
-		-D__HEAP_SIZE=0x1000 \
-		$(USER_DEFINE) -T $(LINKER_SCRIPT) -o $(TESTNAME).o
-	# Generate disassembly code
-	$(GNU_OBJDUMP) -S $(TESTNAME).o > $(TESTNAME).lst
-	# Generate binary file
-	$(GNU_OBJCOPY) -S $(TESTNAME).o -O binary $(TESTNAME).bin
-	# Generate hex file
-	$(GNU_OBJCOPY) -S $(TESTNAME).o -O verilog $(TESTNAME).hex
+# Cortex R class build
+$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.o :  $(TEST_DIR)/$(TESTNAME)_R.c $(DEPS_LIST)
+	mkdir -p $(BUILD_DIR)/$(TESTNAME)
+	$(CC_TOOL) $(ARM_CC_R_OPTIONS) $(CPU_R_OPTS) $< -o  $@
 
-# Note:
-# If the version of object copy you are using does not support verilog hex file output,
-# you can generate the hex file from binary file using the following command
-#       od -v -A n -t x1 --width=1  $(TESTNAME).bin > $(TESTNAME).hex
+$(BUILD_DIR)/common/$(SYSTEM_FILE)_R.o : $(DEVICE_DIR)/Source/$(SYSTEM_FILE).c $(DEPS_LIST)
+	mkdir -p $(BUILD_DIR)/common
+	$(CC_TOOL) $(ARM_CC_R_OPTIONS) $(CPU_R_OPTS) $< -o  $@
 
+$(BUILD_DIR)/common/retarget_R.o : $(SOFTWARE_DIR)/libs/common/retarget/retarget.c $(DEPS_LIST)
+	$(CC_TOOL) $(ARM_CC_R_OPTIONS) $(CPU_R_OPTS) $< -o  $@
 
-# ---------------------------------------------------------------------------------------
-# Keil MDK
+$(BUILD_DIR)/common/uart_stdout_R.o : $(SOFTWARE_DIR)/libs/common/retarget/uart_stdout.c $(DEPS_LIST)
+	$(CC_TOOL) $(ARM_CC_R_OPTIONS) $(CPU_R_OPTS) $< -o  $@
 
-all_keil:
-	@echo "Please compile your project code and press ENTER when ready"
-	@read dummy
+$(BUILD_DIR)/common/$(STARTUP_FILE)_R.o : $(STARTUP_DIR)/$(STARTUP_FILE).c $(DEPS_LIST)
+	$(CC_TOOL) $(ARM_CC_R_OPTIONS) $(CPU_R_OPTS) $< -o  $@
+
+$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.ELF : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.o $(BUILD_DIR)/common/$(SYSTEM_FILE)_R.o $(BUILD_DIR)/common/$(STARTUP_FILE)_R.o $(BUILD_DIR)/common/retarget_R.o $(BUILD_DIR)/common/uart_stdout_R.o
+	armlink $(ARM_LINK_R_OPTIONS) $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.o $(BUILD_DIR)/common/$(SYSTEM_FILE)_R.o  $(BUILD_DIR)/common/$(STARTUP_FILE)_R.o $(BUILD_DIR)/common/retarget_R.o $(BUILD_DIR)/common/uart_stdout_R.o -o $@
+
+$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.hex : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.ELF
+	fromelf --bin $< --output $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).bin
+	fromelf --vhx --8x1 $< --output $@
+
+$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.lst : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.ELF
+	fromelf -c -d -e -s -z -v $< --output $@
+
 
 # ---------------------------------------------------------------------------------------
 # Binary
