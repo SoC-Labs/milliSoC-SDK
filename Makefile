@@ -138,7 +138,7 @@ ARM_CC_OPTIONS   = $(ARM_TARGET) -c -D_FPU -mthumb -I $(DEVICE_DIR)/Include -I $
 		   -I $(SOFTWARE_DIR)/libs/Drivers/Include  \
 		   -I $(SOFTWARE_DIR)/libs/common/retarget $(USER_DEFINE)
 
-ARM_CC_R_OPTIONS   = $(ARM_TARGET) -c -marm -I $(DEVICE_R_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/libs/common/CMSDK \
+ARM_CC_R_OPTIONS   = $(ARM_TARGET) -c -marm -O0 -g -Wall -Wstrict-prototypes -I $(DEVICE_R_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/libs/common/CMSDK \
 		   -I $(SOFTWARE_DIR)/libs/Drivers/Include  \
 		   -I $(SOFTWARE_DIR)/libs/common/retarget $(USER_R_DEFINE)
 
@@ -205,25 +205,23 @@ $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_M.lst : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME
 
 # ---------------------------------------------------------------------------------------
 # Cortex R class build
-$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.o :  $(TEST_DIR)/$(TESTNAME)_R.c $(DEPS_LIST)
+$(BUILD_DIR)/$(TESTNAME)/test_R.o :  $(TEST_DIR)/$(TESTNAME)_R.c $(DEPS_LIST)
 	mkdir -p $(BUILD_DIR)/$(TESTNAME)
 	$(CC_TOOL) $(ARM_CC_R_OPTIONS) $(CPU_R_OPTS) $< -o  $@
 
-$(BUILD_DIR)/common/$(SYSTEM_FILE)_R.o : $(DEVICE_DIR)/Source/$(SYSTEM_FILE).c $(DEPS_LIST)
-	mkdir -p $(BUILD_DIR)/common
-	$(CC_TOOL) $(ARM_CC_R_OPTIONS) $(CPU_R_OPTS) $< -o  $@
+#$(BUILD_DIR)/common/$(SYSTEM_FILE)_R.o : $(DEVICE_DIR)/Source/$(SYSTEM_FILE).c $(DEPS_LIST)
+#	mkdir -p $(BUILD_DIR)/common
+#	$(CC_TOOL) $(ARM_CC_R_OPTIONS) $(CPU_R_OPTS) $< -o  $@
 
 $(BUILD_DIR)/common/retarget_R.o : $(SOFTWARE_DIR)/libs/common/retarget/retarget.c $(DEPS_LIST)
+	mkdir -p $(BUILD_DIR)/common
 	$(CC_TOOL) $(ARM_CC_R_OPTIONS) $(CPU_R_OPTS) $< -o  $@
 
 $(BUILD_DIR)/common/uart_stdout_R.o : $(SOFTWARE_DIR)/libs/common/retarget/uart_stdout.c $(DEPS_LIST)
 	$(CC_TOOL) $(ARM_CC_R_OPTIONS) $(CPU_R_OPTS) $< -o  $@
 
-$(BUILD_DIR)/common/$(STARTUP_FILE)_R.o : $(STARTUP_DIR)/$(STARTUP_FILE).c $(DEPS_LIST)
-	$(CC_TOOL) $(ARM_CC_R_OPTIONS) $(CPU_R_OPTS) $< -o  $@
-
-$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.ELF : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.o $(BUILD_DIR)/common/$(SYSTEM_FILE)_R.o $(BUILD_DIR)/common/$(STARTUP_FILE)_R.o $(BUILD_DIR)/common/retarget_R.o $(BUILD_DIR)/common/uart_stdout_R.o
-	armlink $(ARM_LINK_R_OPTIONS) $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.o $(BUILD_DIR)/common/$(SYSTEM_FILE)_R.o  $(BUILD_DIR)/common/$(STARTUP_FILE)_R.o $(BUILD_DIR)/common/retarget_R.o $(BUILD_DIR)/common/uart_stdout_R.o -o $@
+$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.ELF : $(BUILD_DIR)/$(TESTNAME)/test_R.o $(BUILD_DIR)/common/retarget_R.o $(BUILD_DIR)/common/uart_stdout_R.o
+	armlink $(ARM_LINK_R_OPTIONS) $(BUILD_DIR)/$(TESTNAME)/test_R.o  $(BUILD_DIR)/common/retarget_R.o $(BUILD_DIR)/common/uart_stdout_R.o -o $@
 
 $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.hex : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.ELF
 	fromelf --bin $< --output $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).bin

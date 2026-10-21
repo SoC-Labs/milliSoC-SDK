@@ -149,9 +149,9 @@ int DmaMemcpy(uint32_t addr, uint32_t size, uint32_t dest){
   AdaBaseCommandType command_base = {
     .SRCADDR  = addr, // Read from M0 interface
     .DESADDR  = dest, // Write to M0 interface
-    .SRCXSIZE = size*4,
-    .DESXSIZE = size*4,
-    .TRANSIZE = BITS_64
+    .SRCXSIZE = size,
+    .DESXSIZE = size,
+    .TRANSIZE = BITS_32
   };
 
   // Set the increment of source and destination addresses

@@ -2,7 +2,7 @@ LOAD 0xFFFF0000
 {
     CODE 0xFFFF0000
     {
-        r5_startup.o(VECTORS,+FIRST)
+        r5_startup.o(RESET,+FIRST)
         *(InRoot$$Sections)
         .ANY (+RO)
     }
@@ -25,7 +25,7 @@ LOAD 0xFFFF0000
                     -0x00000100
                     -0x00000100
                     -0x00000100
-                    -0x00000100) EMPTY -0x00000400      ; Stack region growing down
+                    -0x00000100) EMPTY -0x00000F00      ; Stack region growing down
     { }              
                     
     UND_STACK     (0x20000000

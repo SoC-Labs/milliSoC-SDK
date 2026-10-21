@@ -54,7 +54,7 @@ BUILD_DIR    = $(SOFTWARE_DIR)/build/bootloader
 COMPILE_BIGEND = 0
 
 # Configuration
-USER_DEFINE    = -DCORTEX_R5 -DBOOTROM
+USER_DEFINE    = -DCORTEX_R5 -DBOOTROM -DARMCR5 -D_RTE_
 
 DEPS_LIST       = makefile
 
@@ -96,10 +96,10 @@ ifeq ($(TOOL_CHAIN),ds6)
 else
   CC_TOOL   = armcc
   ASM_TOOL = armasm
-  ARM_TARGET = -O3 -Otime --c99
+  ARM_TARGET = -O3 -Ospace --c99
 endif
 
-ARM_CC_OPTIONS   = $(ARM_TARGET) -c -marm -mfpu=none -I $(DEVICE_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/libs/common/CMSDK \
+ARM_CC_OPTIONS   = $(ARM_TARGET) -c -marm -mfpu=none -g -O0 -Wall -I $(DEVICE_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/libs/common/CMSDK \
 		   -I $(SOFTWARE_DIR)/libs/Drivers/Include  \
 		   -I $(SOFTWARE_DIR)/libs/common/retarget $(USER_DEFINE)
 
@@ -154,8 +154,8 @@ $(BUILD_DIR)/$(BOOTLOADER).o :  $(SOFTWARE_DIR)/bootloader/$(BOOTLOADER).c $(DEP
 	mkdir -p $(BUILD_DIR)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
 
-$(BUILD_DIR)/$(STARTUP_FILE).o : $(STARTUP_DIR)/$(STARTUP_FILE).s $(DEPS_LIST)
-	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) -x assembler-with-cpp $< -o  $@
+$(BUILD_DIR)/$(STARTUP_FILE).o : $(STARTUP_DIR)/$(STARTUP_FILE).c $(DEPS_LIST)
+	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@
 
 $(BUILD_DIR)/SL_QPSI.o: $(SOFTWARE_DIR)/libs/Drivers/Source/SL_QSPI.c $(DEPS_LIST)
 	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_TYPE) $< -o  $@

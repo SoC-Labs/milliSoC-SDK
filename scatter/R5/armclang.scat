@@ -2,7 +2,7 @@ LOAD 0x0
 {
     CODE 0x0
     {
-        hello_R.o(.text.main,+FIRST)
+        test_R.o(.text.main,+FIRST)
         *(InRoot$$Sections)
         .ANY (+RO)
     }
@@ -25,7 +25,7 @@ LOAD 0x0
                     -0x00000100
                     -0x00000100
                     -0x00000100
-                    -0x00000100) EMPTY -0x00000400      ; Stack region growing down
+                    -0x00000100) EMPTY -0x00000F00      ; Stack region growing down
     { }              
                     
     UND_STACK     (0x20000000

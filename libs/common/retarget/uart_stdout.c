@@ -60,6 +60,6 @@ unsigned char UartGetc(void)
 void UartEndSimulation(void)
 {
   UartPutc((char) 0x4); // End of simulation
-  while(1);
+ __asm volatile("WFI");
 }
 
