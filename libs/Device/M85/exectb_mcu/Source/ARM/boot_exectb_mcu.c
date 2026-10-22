@@ -76,15 +76,6 @@ __attribute__((weak)) void Default_IRQHandler(void)
   while(1);
 }
 
-__attribute__((weak)) void DMA0_IRQHandler(void)
-{
-  while(1);
-}
-
-__attribute__((weak)) void DMA1_IRQHandler(void)
-{
-  while(1);
-}
 __attribute__((weak)) void DMA2_IRQHandler(void)
 {
   while(1);
@@ -94,16 +85,28 @@ __attribute__((weak)) void DMA3_IRQHandler(void)
   while(1);
 }
 
-__attribute__((weak)) void DMAComb_IRQHandler(void)
-{
+__attribute__((weak)) void IPC_SND_ERRHandler(void){
+  while(1);
+}
+__attribute__((weak)) void IPC_SND_FLTHandler(void){
+  while(1);
+}
+__attribute__((weak)) void IPC_SND_PBXHandler(void){
+  while(1);
+}
+__attribute__((weak)) void IPC_REC_FSTHandler(void){
+  while(1);
+}
+__attribute__((weak)) void IPC_REC_ERRHandler(void){
+  while(1);
+}
+__attribute__((weak)) void IPC_REC_FLTHandler(void){
+  while(1);
+}
+__attribute__((weak)) void IPC_REC_MBXHandler(void){
   while(1);
 }
 
-
-__attribute__((weak)) void QSPI_FINISHED_IRQHandler(void)
-{
-  while(1);
-}
 __attribute__((weak)) void GPIO0_COMB_IRQHandler(void)
 {
   while(1);
@@ -260,46 +263,6 @@ __attribute__((weak)) void DUALTIMERCOMB_IRQHandler(void)
 {
   while(1);
 }
-__attribute__((weak)) void USRT0_TX_IRQHandler(void)
-{
-  while(1);
-}
-__attribute__((weak)) void USRT0_RX_IRQHandler(void)
-{
-  while(1);
-}
-__attribute__((weak)) void USRT0_TXOF_IRQHandler(void)
-{
-  while(1);
-}
-__attribute__((weak)) void USRT0_RXOF_IRQHandler(void)
-{
-  while(1);
-}
-__attribute__((weak)) void USRT0_COMB_IRQHandler(void)
-{
-  while(1);
-}
-__attribute__((weak)) void USRT1_TX_IRQHandler(void)
-{
-  while(1);
-}
-__attribute__((weak)) void USRT1_RX_IRQHandler(void)
-{
-  while(1);
-}
-__attribute__((weak)) void USRT1_TXOF_IRQHandler(void)
-{
-  while(1);
-}
-__attribute__((weak)) void USRT1_RXOF_IRQHandler(void)
-{
-  while(1);
-}
-__attribute__((weak)) void USRT1_COMB_IRQHandler(void)
-{
-  while(1);
-}
 __attribute__((weak)) void UART0_TX_IRQHandler(void)
 {
   while(1);
@@ -426,14 +389,16 @@ __attribute__ ((section("vectors"))) = {
 
   // External Interrupts
 
-  (vect_t)DMA0_IRQHandler,  // External Interrupt from DMA Channel 0 Done
-  (vect_t)DMA1_IRQHandler,  // External Interrupt from DMA Channel 1 Done
   (vect_t)DMA2_IRQHandler,  // External Interrupt from DMA Channel 2 Done
   (vect_t)DMA3_IRQHandler,  // External Interrupt from DMA Channel 3 Done
-
+  (vect_t)IPC_SND_ERRHandler, // IPC sender error handler
+  (vect_t)IPC_SND_FLTHandler, // IPC Sender fault handler
   //4-7
-  (vect_t)DMAComb_IRQHandler, //DMA Combined Interrupt handler
-  (vect_t)QSPI_FINISHED_IRQHandler,
+  (vect_t)IPC_SND_PBXHandler, 
+  (vect_t)IPC_REC_FSTHandler, 
+  (vect_t)IPC_REC_ERRHandler, 
+  (vect_t)IPC_REC_FLTHandler, 
+  (vect_t)IPC_REC_MBXHandler, 
   (vect_t)GPIO0_COMB_IRQHandler,
   (vect_t)GPIO1_COMB_IRQHandler,
   (vect_t)GPIO0_0_IRQHandler,
@@ -473,16 +438,6 @@ __attribute__ ((section("vectors"))) = {
   (vect_t)DUALTIMER1_IRQHandler,
   (vect_t)DUALTIMER2_IRQHandler,
   (vect_t)DUALTIMERCOMB_IRQHandler,
-  (vect_t)USRT0_TX_IRQHandler,
-  (vect_t)USRT0_RX_IRQHandler,
-  (vect_t)USRT0_TXOF_IRQHandler,
-  (vect_t)USRT0_RXOF_IRQHandler,
-  (vect_t)USRT0_COMB_IRQHandler,
-  (vect_t)USRT1_TX_IRQHandler,
-  (vect_t)USRT1_RX_IRQHandler,
-  (vect_t)USRT1_TXOF_IRQHandler,
-  (vect_t)USRT1_RXOF_IRQHandler,
-  (vect_t)USRT1_COMB_IRQHandler,
   (vect_t)UART0_TX_IRQHandler,
   (vect_t)UART0_RX_IRQHandler,
   (vect_t)UART0_TXOF_IRQHandler,
