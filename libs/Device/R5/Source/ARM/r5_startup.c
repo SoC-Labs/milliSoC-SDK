@@ -215,6 +215,7 @@ void Reset_Handler (void)
 // Region 4: Peripheral    Base = 0x40000000  Size = 512Kb  Device  Non-Shared  Full access  Not Excecutable
 // Region 5: SYS config    Base = 0x44000000  Size = 256Kb  Device  Non-Shared  Full access  Not Executable
 // Region 6: Flash         Base = 0x60000000  Size = 2MB    Normal  Non-shared  Read-only    Excecutable
+// Region 7: Debug APBIC   Base = 0xE00F0000  Size = 16KB   Device  Non-Shared  Full access  Not Executable
 
         // Import linker symbols to get region base addresses
         ".global  Image$$CODE$$Base \n"
@@ -296,6 +297,17 @@ void Reset_Handler (void)
         "MCR     p15, 0, r2, c6, c1, 2        \n"
         "LDR     r2, =0x0  |  (0b110 << 8)  |  0x0B \n"
         "MCR     p15, 0, r2, c6, c1, 4        \n"
+
+        // Region 7 - CoreSight debug APBIC
+        "ADD     r1, r1, #1 \n"
+        "MCR     p15, 0, r1, c6, c2, 0 \n"
+        "ISB \n"
+        "LDR     r2, =0xE00F0000 \n"
+        "MCR     p15, 0, r2, c6, c1, 0 \n"
+        "LDR     r2, =0x0  |  (0b01101  << 1)  |  0b1 \n"
+        "MCR     p15, 0, r2, c6, c1, 2 \n"
+        "LDR     r2, =0x0  |  (0b011 << 8)  |  0x10  |  0x1000 \n"
+        "MCR     p15, 0, r2, c6, c1, 4 \n"
 
         // Disable all higher priority regions (assumes unified regions, which is always true for Cortex-R5)
         "MRC     p15, 0, r0, c0, c0, 4     \n"   // Read MPU Type register (MPUIR)
