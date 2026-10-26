@@ -1035,20 +1035,6 @@ typedef struct {
 #define ITM_TCR_TS_GLOBAL_8192    0x10 << ITM_TCR_GTSFREQ_Pos
 #define ITM_TCR_TS_GLOBAL_ALL     0x11 << ITM_TCR_GTSFREQ_Pos
 
-/* Peripheral and SRAM base address */
-#define SRAM_BASE                 0x20000000UL
-#define PERIPH_BASE               0x40000000UL
-
-/* Peripheral memory map */
-#define GPIO_BASE                 PERIPH_BASE
-
-#define GPIO0_BASE                (GPIO_BASE)
-#define GPIO1_BASE                (GPIO_BASE       + 0x0800UL)
-#define GPIO2_BASE                (GPIO_BASE       + 0x1000UL)
-#define GPIO3_BASE                (GPIO_BASE       + 0x1800UL)
-#define BASEADDR_EXT_REG          (GPIO_BASE       + 0x2000UL)
-#define DMAC_BASE                 (PERIPH_BASE     + 0x2800UL)
-#define PMC_EXT_BASE              (PERIPH_BASE     + 0x3000UL)
 
 /******************************************************************************/
 /*                         Declaration                                        */
