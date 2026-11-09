@@ -18,6 +18,7 @@
 
 
 #define FLASH_BASE          0x60000000UL
+#define FLASH_SIZE          0x400000UL
 #define ITCM_BASE           0x00000000UL
 
 #define DTCM_BASE           0x20000000UL

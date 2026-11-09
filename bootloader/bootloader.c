@@ -50,9 +50,22 @@ int main (void)
   printf("Preload ITCM...\n");
   M_image_start=*(volatile uint32_t *) FLASH_BASE;
   M_image_size =*(volatile uint32_t *) (FLASH_BASE+0x04);
+
+  // If Flash not initialised, M_image_start is likely to be 0xFFFFFFFF
+  if(M_image_start > FLASH_SIZE) {
+    printf("ERROR: M Image Address Out of Bounds = 0x%08x\n", M_image_start);
+    __WFI();
+  }
   DmaMemcpy(M_image_start + FLASH_BASE, M_image_size, 0x00000000);
+  
   R_image_start=*(volatile uint32_t *) (FLASH_BASE+0x08);
   R_image_size =*(volatile uint32_t *) (FLASH_BASE+0x0C);
+
+  // If Flash not initialised, R_image_start is likely to be 0xFFFFFFFF
+  if(R_image_start > FLASH_SIZE) {
+    printf("ERROR: R Image Address Out of Bounds = 0x%08x\n", R_image_start);
+    __WFI();
+  }
   DmaMemcpy(R_image_start + FLASH_BASE, R_image_size, 0x80000000);
 
   printf("Start main program\n\n");
