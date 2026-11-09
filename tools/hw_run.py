@@ -1,0 +1,347 @@
+#!/usr/bin/env python3
+"""Flash a milliSoC image over DSTREAM and capture the M85/R5 UARTs.
+
+This wraps the manual sequence:
+
+  1. open the M85 and R5 serial ports,
+  2. run the QSPI flash programmer through ``armdbg``,
+  3. stream both UARTs to the console and to ``uart_M85.log`` / ``uart_R5.log``,
+  4. stop when the M85 sends the end-of-simulation byte (0x04) or on timeout.
+
+The UARTs are opened *before* flashing so the boot banner and the whole test
+run are captured.
+
+Typical use (from the repo root, in a shell where ``armdbg`` is on PATH)::
+
+    python3 tools/hw_run.py --hex build/u85_control/u85_control.hex
+
+The Makefile targets ``flash_hw``, ``run_hw`` and ``uart_hw`` call this script.
+
+Exit codes:
+    0  the M85 reached end-of-simulation and printed no ``FAIL``
+    1  the run completed but a ``FAIL`` line was seen, or no end marker arrived
+    2  usage or serial-port error
+    3  flashing failed
+"""
+
+import argparse
+import os
+import re
+import subprocess
+import sys
+import threading
+import time
+
+# pyserial is imported lazily: --flash-only does not need it, and the build
+# toolchain's python3 may not have it installed.
+_serial = None
+
+
+def serial_module():
+    global _serial
+    if _serial is None:
+        try:
+            import serial as _serial_mod
+            from serial.tools import list_ports as _list_ports_mod
+        except ImportError:  # pragma: no cover - environment dependent
+            sys.stderr.write("error: pyserial is required (python -m pip install pyserial)\n")
+            raise SystemExit(2)
+        _serial = (_serial_mod, _list_ports_mod)
+    return _serial
+
+EOT = 0x04
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+class UartCapture(threading.Thread):
+    """Read one serial port, echo complete lines, and log the raw bytes."""
+
+    def __init__(self, label, port, baud, log_path, stop_event):
+        super().__init__(daemon=True)
+        self.label = label
+        self.port = port
+        self.baud = baud
+        self.log_path = log_path
+        self.stop_event = stop_event
+        self.opened = threading.Event()
+        self.eot = threading.Event()
+        self.error = None
+        self.bytes = 0
+        self._pending = bytearray()
+        self._lock = threading.Lock()
+
+    # -- helpers ---------------------------------------------------------
+    def _emit(self, raw):
+        text = raw.decode("utf-8", "replace").rstrip("\r\n")
+        if text:
+            print("[%s] %s" % (self.label, text), flush=True)
+
+    def _feed(self, data):
+        # The end-of-simulation byte is a control character, not text.
+        self._pending.extend(data.replace(b"\x04", b""))
+        while True:
+            idx = min(
+                (i for i in (self._pending.find(b"\n"), self._pending.find(b"\r")) if i >= 0),
+                default=-1,
+            )
+            if idx < 0:
+                return
+            line = bytes(self._pending[:idx])
+            del self._pending[: idx + 1]
+            if line:
+                self._emit(line)
+
+    def _flush_pending(self):
+        if self._pending:
+            self._emit(bytes(self._pending))
+            del self._pending[:]
+
+    # -- thread ----------------------------------------------------------
+    def run(self):
+        serial_mod, _ = serial_module()
+        try:
+            ser = serial_mod.Serial(self.port, self.baud, timeout=0.05)
+        except Exception as exc:  # noqa: BLE001 - report whatever pyserial raised
+            self.error = str(exc)
+            self.opened.set()
+            self.stop_event.set()
+            return
+
+        self.opened.set()
+        print("[hw] %s: %s open at %d baud" % (self.label, self.port, self.baud), flush=True)
+        with open(self.log_path, "wb") as log:
+            try:
+                while not self.stop_event.is_set():
+                    data = ser.read(256)
+                    if not data:
+                        continue
+                    self.bytes += len(data)
+                    log.write(data)
+                    log.flush()
+                    if self.label == "M85" and EOT in data:
+                        self.eot.set()
+                    self._feed(data)
+            except Exception as exc:  # noqa: BLE001 - e.g. cable unplugged
+                self.error = str(exc)
+            finally:
+                self._flush_pending()
+                ser.close()
+
+
+def available_ports():
+    _, list_ports_mod = serial_module()
+    return ", ".join("%s (%s)" % (p.device, p.description) for p in list_ports_mod.comports()) or "none"
+
+
+def write_flash_script(log_dir, scripts_dir, hex_path, flash_base):
+    """Create the .ds launcher with absolute paths and the requested image."""
+    path = os.path.join(log_dir, "flash_hw.ds")
+    py = os.path.join(scripts_dir, "flash_programmer.py").replace("\\", "/")
+    image = os.path.abspath(hex_path).replace("\\", "/")
+    with open(path, "w", newline="\n") as f:
+        f.write("# Auto-generated by tools/hw_run.py - do not edit.\n")
+        f.write('source "%s" "%s" 0x%X\n' % (py, image, flash_base))
+        f.write("memory set AXI:0x44030008 32 0x4\n")
+    return path
+
+
+def flash_image(args, log_dir):
+    """Run the flash programmer through armdbg. Returns True on success."""
+    if not os.path.isfile(args.hex):
+        print("[hw] error: image not found: %s" % args.hex, file=sys.stderr)
+        return False
+
+    script = write_flash_script(log_dir, args.scripts_dir, args.hex, args.flash_base)
+    cmd = [
+        "armdbg",
+        "--cdb-root",
+        args.cdb_root,
+        "--cdb-entry",
+        args.cdb_entry,
+        "--cdb-entry-param",
+        "Connection=%s" % args.connection,
+        "-s",
+        script,
+    ]
+    print("[hw] flash base 0x%X, image %s" % (args.flash_base, os.path.abspath(args.hex)), flush=True)
+    print("[hw] %s" % " ".join(cmd), flush=True)
+
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            cwd=args.scripts_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            errors="replace",
+            bufsize=1,
+        )
+    except FileNotFoundError:
+        print("[hw] error: armdbg not found on PATH", file=sys.stderr)
+        return False
+
+    timer = threading.Timer(args.flash_timeout, proc.kill)
+    timer.start()
+    lines = []
+    try:
+        for line in proc.stdout:
+            line = ANSI_RE.sub("", line.rstrip("\r\n"))
+            lines.append(line)
+            # The debugger echoes every memory access it executes. That is
+            # thousands of lines, so only show the programmer's own messages
+            # unless --verbose-flash was requested.
+            if args.verbose_flash or "[SST26]" in line or re.search(
+                r"\b(ERROR|WARNING|FAIL|SUCCESS|JEDEC)\b", line
+            ):
+                print("[flash] %s" % line, flush=True)
+        rc = proc.wait()
+    finally:
+        timer.cancel()
+
+    flash_log = os.path.join(log_dir, "flash.log")
+    with open(flash_log, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+    print("[hw] full flash log: %s" % flash_log, flush=True)
+
+    output = "\n".join(lines)
+    if rc != 0:
+        print("[hw] error: armdbg exited with code %d" % rc, file=sys.stderr)
+        return False
+    if "SUCCESS:" not in output:
+        print("[hw] error: flash programmer did not report SUCCESS", file=sys.stderr)
+        return False
+    return True
+
+
+def parse_args(argv):
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo = os.path.dirname(here)
+
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p.add_argument("--hex", help="flash image (build/<app>/<app>.hex)")
+    p.add_argument("--flash-base", type=lambda v: int(v, 0), default=0, help="flash offset (default 0)")
+    p.add_argument("--log-dir", default=os.path.join(repo, "build"), help="where logs and the .ds go")
+    p.add_argument("--m85-port", default="COM3", help="M85 UART port (default COM3, '' to disable)")
+    p.add_argument("--r5-port", default="COM7", help="R5 UART port (default COM7, '' to disable)")
+    p.add_argument("--baud", type=int, default=250000, help="UART baud rate (default 250000)")
+    p.add_argument("--timeout", type=float, default=120.0, help="seconds to wait for end-of-simulation after flashing")
+    p.add_argument("--grace", type=float, default=1.0, help="seconds to keep reading after end-of-simulation")
+    p.add_argument("--flash-timeout", type=float, default=1800.0, help="seconds before the flash run is killed")
+    p.add_argument("--no-flash", action="store_true", help="only capture the UARTs")
+    p.add_argument("--flash-only", action="store_true", help="only flash, do not open the UARTs")
+    p.add_argument("--verbose-flash", action="store_true", help="show every debugger command during flashing")
+    p.add_argument("--no-require-eot", action="store_true", help="do not fail if the end marker is missing")
+    p.add_argument("--allow-fail", action="store_true", help="do not fail on FAIL lines")
+    p.add_argument(
+        "--scripts-dir",
+        default=os.path.join(repo, "armdbg", "scripts"),
+        help="directory containing flash_programmer.py",
+    )
+    p.add_argument("--cdb-root", default=os.path.join(repo, "milliSoC"))
+    p.add_argument(
+        "--cdb-entry",
+        default="SoCLabs::milliSoC::Bare Metal Debug::Bare Metal Debug::Cortex-M85::DSTREAM",
+    )
+    p.add_argument("--connection", default="TCP:192.168.137.59", help="DSTREAM connection string")
+    args = p.parse_args(argv)
+
+    if not args.flash_only and not args.no_flash and not args.hex:
+        p.error("--hex is required unless --no-flash or --flash-only is used")
+    if args.flash_only and args.no_flash:
+        p.error("--flash-only and --no-flash are mutually exclusive")
+    return args
+
+
+def main(argv):
+    args = parse_args(argv)
+    os.makedirs(args.log_dir, exist_ok=True)
+
+    ports = []
+    if not args.flash_only:
+        if args.m85_port:
+            ports.append(("M85", args.m85_port))
+        if args.r5_port:
+            ports.append(("R5", args.r5_port))
+        if not ports:
+            print("[hw] error: no UART ports selected", file=sys.stderr)
+            return 2
+        # Fail early, from the main thread, if pyserial is missing.
+        serial_module()
+
+    stop_event = threading.Event()
+    captures = []
+    for label, port in ports:
+        cap = UartCapture(
+            label,
+            port,
+            args.baud,
+            os.path.join(args.log_dir, "uart_%s.log" % label),
+            stop_event,
+        )
+        captures.append(cap)
+        cap.start()
+
+    # Make sure both ports are open before flashing, otherwise the boot
+    # banner would be lost.
+    for cap in captures:
+        cap.opened.wait(timeout=5.0)
+        if cap.error:
+            print("[hw] error: cannot open %s %s: %s" % (cap.label, cap.port, cap.error), file=sys.stderr)
+            print("[hw] available ports: %s" % available_ports(), file=sys.stderr)
+            stop_event.set()
+            for other in captures:
+                other.join(timeout=2.0)
+            return 2
+
+    if not args.no_flash:
+        if not flash_image(args, args.log_dir):
+            stop_event.set()
+            for cap in captures:
+                cap.join(timeout=2.0)
+            return 3
+
+    if args.flash_only:
+        return 0
+
+    print("[hw] waiting up to %.0f s for end-of-simulation" % args.timeout, flush=True)
+    m85 = next((c for c in captures if c.label == "M85"), None)
+    deadline = time.time() + args.timeout
+    while time.time() < deadline:
+        if m85 is not None and m85.eot.is_set():
+            break
+        if stop_event.is_set():
+            break
+        time.sleep(0.1)
+
+    saw_eot = m85 is not None and m85.eot.is_set()
+    if saw_eot:
+        time.sleep(args.grace)
+    stop_event.set()
+    for cap in captures:
+        cap.join(timeout=2.0)
+
+    m85_text = ""
+    m85_log = os.path.join(args.log_dir, "uart_M85.log")
+    if os.path.isfile(m85_log):
+        with open(m85_log, "r", encoding="utf-8", errors="replace") as f:
+            m85_text = f.read()
+
+    fails = [line for line in m85_text.splitlines() if "FAIL" in line]
+    ok = True
+    if not saw_eot and not args.no_require_eot:
+        print("[hw] error: no end-of-simulation byte from the M85", file=sys.stderr)
+        print("[hw] hint: check the COM ports/baud and that the board booted from flash", file=sys.stderr)
+        ok = False
+    if fails and not args.allow_fail:
+        for line in fails:
+            print("[hw] FAIL line: %s" % line, file=sys.stderr)
+        ok = False
+
+    for cap in captures:
+        print("[hw] %s: %d bytes -> %s" % (cap.label, cap.bytes, cap.log_path), flush=True)
+    print("[hw] result: %s" % ("PASS" if ok else "FAIL"), flush=True)
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

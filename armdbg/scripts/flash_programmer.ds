@@ -8,5 +8,5 @@
 #
 # Use forward slashes in Windows paths, especially when paths contain spaces.
 
-source flash_programmer.py "C:\Users\Daniel\milliSoC-SDK\build\u85_tests\u85_tests.hex" 0x000000
+source flash_programmer.py "C:\Users\Daniel\milliSoC-SDK\build\u85_control\u85_control.hex" 0x000000
 memory set AXI:0x44030008 32 0x4

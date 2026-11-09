@@ -2,3 +2,5 @@ build
 
 AGENTS.md
 /.metadata/
+__pycache__/
+*.pyc

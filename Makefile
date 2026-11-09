@@ -285,7 +285,47 @@ $(BOOTROM_SV_DIR) $(BOOTROM_BIN_DIR):
 $(BOOTROM_HEX):
 	$(MAKE) -C $(SOFTWARE_DIR)/$(BOOTLOADER) all_$(TOOL_CHAIN) $(SW_MAKE_OPTIONS)
 
-# Arm debugger connection:
+# ---------------------------------------------------------------------------------------
+# Arm debugger connection and hardware test automation
+# ---------------------------------------------------------------------------------------
+# Override any of these on the command line, e.g.
+#   make run_hw TESTNAME=u85_control M85_COM=COM3 R5_COM=COM7
+DSTREAM_CONN  ?= TCP:192.168.137.59
+CDB_ROOT      ?= $(SOFTWARE_DIR)/milliSoC/
+CDB_ENTRY     ?= SoCLabs::milliSoC::Bare Metal Debug::Bare Metal Debug::Cortex-M85::DSTREAM
+FLASH_BASE    ?= 0x000000
+M85_COM       ?= COM3
+R5_COM        ?= COM7
+UART_BAUD     ?= 250000
+BOOT_TIMEOUT  ?= 120
+FLASH_TIMEOUT ?= 1800
+HW_EXTRA      ?=
+
+HW_PYTHON   ?= python
+HW_RUN      = $(HW_PYTHON) $(SOFTWARE_DIR)/tools/hw_run.py
+HW_RUN_ARGS = --hex $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).hex \
+              --flash-base $(FLASH_BASE) \
+              --log-dir $(BUILD_DIR)/$(TESTNAME) \
+              --m85-port "$(M85_COM)" --r5-port "$(R5_COM)" --baud $(UART_BAUD) \
+              --timeout $(BOOT_TIMEOUT) --flash-timeout $(FLASH_TIMEOUT) \
+              --cdb-root "$(CDB_ROOT)" --cdb-entry "$(CDB_ENTRY)" \
+              --connection $(DSTREAM_CONN) $(HW_EXTRA)
+
+# Arm debugger connection (interactive command view):
 connect_dstream:
-	armdbg --cdb-root $(SOFTWARE_DIR)/milliSoC/ --cdb-entry="SoCLabs::milliSoC::Bare Metal Debug::Bare Metal Debug::Cortex-R5::DSTREAM" --cdb-entry-param "Connection=TCP:192.168.137.59"
+	cd ./armdbg/scripts/; armdbg --cdb-root "$(CDB_ROOT)" --cdb-entry="$(CDB_ENTRY)" --cdb-entry-param "Connection=$(DSTREAM_CONN)"
+
+# Flash the built image over DSTREAM, without touching the UARTs:
+flash_hw: $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).hex
+	$(HW_RUN) $(HW_RUN_ARGS) --flash-only
+
+# Flash, then capture both UARTs until the M85 end-of-simulation byte:
+run_hw: $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).hex
+	$(HW_RUN) $(HW_RUN_ARGS)
+
+# Capture the UARTs only (reset or run the board yourself):
+uart_hw:
+	$(HW_RUN) --no-flash --log-dir $(BUILD_DIR)/$(TESTNAME) \
+	          --m85-port "$(M85_COM)" --r5-port "$(R5_COM)" --baud $(UART_BAUD) \
+	          --timeout $(BOOT_TIMEOUT) $(HW_EXTRA)
 
