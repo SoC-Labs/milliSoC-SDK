@@ -146,8 +146,8 @@ ARM_ASM_OPTIONS  =
 ARM_LINK_OPTIONS = "--keep=$(STARTUP_FILE).o(vectors)" "--first=$(STARTUP_FILE).o(vectors)" \
 		--rw_base 0x20000000 --ro_base 0x000000 --map --datacompressor=off --info=inline
 
-ARM_LINK_M_OPTIONS += --scatter /home/dwn1c21/SoC-Labs/millisoc_project/millisoc_sdk/scatter/M85/armclang.scat
-ARM_LINK_R_OPTIONS += --scatter /home/dwn1c21/SoC-Labs/millisoc_project/millisoc_sdk/scatter/R5/armclang.scat
+ARM_LINK_M_OPTIONS += --scatter $(SOFTWARE_DIR)/scatter/M85/armclang.scat
+ARM_LINK_R_OPTIONS += --scatter $(SOFTWARE_DIR)/scatter/R5/armclang.scat
 
 ifeq ($(COMPILE_BIGEND),1)
  # Big Endian
@@ -284,3 +284,8 @@ $(BOOTROM_SV_DIR) $(BOOTROM_BIN_DIR):
 # Compile bootloader in the testcodes/bootloader directory
 $(BOOTROM_HEX):
 	$(MAKE) -C $(SOFTWARE_DIR)/$(BOOTLOADER) all_$(TOOL_CHAIN) $(SW_MAKE_OPTIONS)
+
+# Arm debugger connection:
+connect_dstream:
+	armdbg --cdb-root $(SOFTWARE_DIR)/milliSoC/ --cdb-entry="SoCLabs::milliSoC::Bare Metal Debug::Bare Metal Debug::Cortex-R5::DSTREAM" --cdb-entry-param "Connection=TCP:192.168.137.59"
+

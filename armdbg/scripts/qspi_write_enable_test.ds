@@ -1,0 +1,59 @@
+
+# ============================================================
+# milliSoC - QSPI Write Enable / Status Diagnostic (SST26VF064B)
+#
+# Target flash : SST26VF064B (64 Mbit SPI NOR)
+#
+# SST26VF064B status register (0x05 Read Status Register):
+#   bit0 = WIP (Write In Progress)
+#   bit1 = WEL (Write Enable Latch)
+#
+# NOTE: The SST26VF064B does NOT have a flag status register (0x70).
+#       Use 0x05 for all busy/ready polling.
+# NOTE: The SST26VF064B ships with all blocks write-protected.
+#       Issue WREN (0x06) then ULBPR (0x98) before erase/program.
+# ============================================================
+
+# Enable QIO mode (CTRL bit0 = QIO_MODE)
+memory set AXI:0x44010000 32 0x00000001
+
+# ------------------------------------------------------------
+# 1. Write Enable (0x06)
+# ------------------------------------------------------------
+memory set AXI:0x44010008 32 0x00000106
+
+# Check controller completion
+x/1wx AXI:0x44010004
+
+# ------------------------------------------------------------
+# 2. Read Status Register (0x05) -- 1 byte, READ, DUMMY=2
+#    After WREN, expect WEL (status bit1) = 1
+#    Status byte lands in bits [31:24] of RDATA0
+# ------------------------------------------------------------
+memory set AXI:0x44010008 32 0x00002305
+
+# Check controller completion
+x/1wx AXI:0x44010004
+
+# Read response -- bit1 of byte3 (bits[31:24]) should be set (WEL)
+x/1wx AXI:0x44010010
+
+# ------------------------------------------------------------
+# 3. Global Block Protection Unlock (ULBPR 0x98)
+#    SST26VF064B powers up with every block protected.
+#    Sequence: WREN (0x06) then ULBPR (0x98).
+# ------------------------------------------------------------
+
+# Write Enable
+memory set AXI:0x44010008 32 0x00000106
+
+# Unlock Global Block Protection (0x98)
+memory set AXI:0x44010008 32 0x00000198
+
+# Check controller completion
+x/1wx AXI:0x44010004
+
+# Confirm status after unlock (WEL should clear after ULBPR)
+memory set AXI:0x44010008 32 0x00002305
+x/1wx AXI:0x44010004
+x/1wx AXI:0x44010010

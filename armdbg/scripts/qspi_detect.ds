@@ -1,0 +1,36 @@
+
+# ============================================================
+# milliSoC - QSPI Flash Detection (SST26VF064B)
+# Arm Development Studio / DSTREAM-ST
+#
+# Access point : AXI
+# QSPI base    : 0x44010000
+#
+# Target flash : SST26VF064B (64 Mbit SPI NOR)
+# Command      : 0xAF QPI Read ID (3-byte response, 2 dummy cycles)
+# Expected RDATA0 = 0x4326BF00
+#   Manufacturer : 0xBF (SST / Microchip)
+#   Memory Type  : 0x26
+#   Density      : 0x43 (64 Mbit)
+# ============================================================
+
+# Enable QIO mode (CTRL bit0 = QIO_MODE)
+memory set AXI:0x44010000 32 0x00000001
+
+# Read initial controller status
+x/1wx AXI:0x44010004
+
+# Issue QPI Read ID (0xAF) -- setup (ENABLE=0, DUMMY=2, 3 bytes)
+memory set AXI:0x44010008 32 0x000220AF
+
+# Issue QPI Read ID (0xAF) -- start  (ENABLE=1)
+memory set AXI:0x44010008 32 0x000223AF
+
+# Read controller status
+x/1wx AXI:0x44010004
+
+# Read returned data -- expect 0x4326BF00 for SST26VF064B
+x/4wx AXI:0x44010010
+
+# Read controller configuration
+x/1wx AXI:0x44010000

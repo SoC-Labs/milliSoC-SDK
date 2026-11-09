@@ -1,0 +1,32 @@
+
+# ============================================================
+# milliSoC - SPI JEDEC ID Read (SST26VF064B)
+# Arm Development Studio 2026.1
+#
+# Access point : AXI
+# Base address : 0x44010000
+#
+# Target flash : SST26VF064B (64 Mbit SPI NOR)
+# Command      : 0x9F Read JEDEC ID (3-byte response)
+#   Manufacturer : 0xBF (SST / Microchip)
+#   Memory Type  : 0x26
+#   Density      : 0x43 (64 Mbit)
+# Expected RDATA0 = 0x4326BF00
+#   (byte3 = density, byte2 = type, byte1 = mfr, byte0 = pad)
+# ============================================================
+
+# Select standard-SPI mode (QIO_MODE = 0, no XiP)
+memory set AXI:0x44010000 32 0x00000000
+
+# Clear / check controller status
+x/1wx AXI:0x44010004
+
+# Issue SPI JEDEC ID (0x9F): READ=1, 3 bytes, no address, no dummy
+#   opcode=0x9F  ENABLE=1  READ=1  N_RW_BYTES=2
+memory set AXI:0x44010008 32 0x0002039F
+
+# Check transaction status
+x/1wx AXI:0x44010004
+
+# Read response -- expect 0x4326BF00 for SST26VF064B
+x/4wx AXI:0x44010010

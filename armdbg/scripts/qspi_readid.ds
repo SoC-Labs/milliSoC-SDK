@@ -1,0 +1,31 @@
+
+# ============================================================
+# milliSoC - QPI Read ID (SST26VF064B)
+# Arm Development Studio 2026.1
+#
+# Access point : AXI
+# Base address : 0x44010000
+#
+# Target flash : SST26VF064B (64 Mbit SPI NOR)
+# Command      : 0xAF QPI Read ID (3-byte response, 2 dummy cycles)
+#   Manufacturer : 0xBF (SST / Microchip)
+#   Memory Type  : 0x26
+#   Density      : 0x43 (64 Mbit)
+# Expected RDATA0 = 0x4326BF00
+# ============================================================
+
+# Enable QIO mode (CTRL bit0 = QIO_MODE)
+memory set AXI:0x44010000 32 0x00000001
+
+# Clear / check controller status
+x/1wx AXI:0x44010004
+
+# Issue QPI Read ID (0xAF): READ=1, DUMMY=2, 3 bytes, no address
+#   opcode=0xAF  ENABLE=1  READ=1  DUMMY=2  N_RW_BYTES=2
+memory set AXI:0x44010008 32 0x000223AF
+
+# Check transaction status
+x/1wx AXI:0x44010004
+
+# Read response -- expect 0x4326BF00 for SST26VF064B
+x/4wx AXI:0x44010010

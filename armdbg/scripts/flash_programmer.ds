@@ -1,0 +1,12 @@
+# milliSoC Pmod SF3 flash programmer launcher
+#
+# Edit the HEX path and flash offset below, then run:
+#   source flash_programmer.ds
+#
+# The lowest data address in the HEX file is mapped to flash offset 0x000000.
+# The programmer erases every 4-KiB sector spanning the image.
+#
+# Use forward slashes in Windows paths, especially when paths contain spaces.
+
+source flash_programmer.py "C:\Users\Daniel\milliSoC-SDK\build\u85_tests\u85_tests.hex" 0x000000
+memory set AXI:0x44030008 32 0x4

@@ -1,0 +1,20 @@
+
+# ============================================================
+# milliSoC - QSPI Write Enable Test
+# ============================================================
+
+# Enable QSPI transactions
+memory set AXI:0x44010000 32 0x00000001
+
+# Issue Reset Enable (0x66)
+memory set AXI:0x44010008 32 0x00000166
+
+# Check controller
+x/1wx AXI:0x44010004
+
+# Issue Reset (0x99)
+memory set AXI:0x44010008 32 0x00000199
+
+# Check transaction status
+x/1wx AXI:0x44010004
+
