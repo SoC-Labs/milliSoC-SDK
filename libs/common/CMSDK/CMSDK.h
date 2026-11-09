@@ -139,3 +139,115 @@ typedef struct
 /*@}*/ /* end of group CMSDK_TIMER */
 
 #define CMSDK_TIMER0            ((CMSDK_TIMER_TypeDef  *) TIMER0_BASE  )
+#define CMSDK_TIMER1            ((CMSDK_TIMER_TypeDef  *) TIMER1_BASE  )
+
+/*-------------------------- Dual Timer (SP804) -----------------------------*/
+/** @addtogroup CMSDK_DUALTIMER CMSDK Dual Timer
+  memory mapped structure for the CMSDK/SP804 dual timer
+  @{
+*/
+
+/* One half (one of the two independent 32-bit timers) of the dual timer. */
+typedef struct
+{
+    volatile          uint32_t  LOAD;       /*!< Offset: 0x00 Load Register (R/W) */
+    volatile          uint32_t  VALUE;      /*!< Offset: 0x04 Current Value Register (R/W) */
+    volatile          uint32_t  CONTROL;    /*!< Offset: 0x08 Control Register (R/W) */
+    volatile          uint32_t  INTCLR;     /*!< Offset: 0x0C Interrupt Clear Register ( /W) */
+    const volatile    uint32_t  RIS;        /*!< Offset: 0x10 Raw Interrupt Status (R/ ) */
+    const volatile    uint32_t  MIS;        /*!< Offset: 0x14 Masked Interrupt Status (R/ ) */
+    volatile          uint32_t  BGLOAD;     /*!< Offset: 0x18 Background Load Register (R/W) */
+    const volatile    uint32_t  RESERVED;   /*!< Offset: 0x1C Reserved */
+} CMSDK_DUALTIMER_CHANNEL_TypeDef;
+
+typedef struct
+{
+    CMSDK_DUALTIMER_CHANNEL_TypeDef TIMER[2]; /*!< Offset: 0x00 Timer 1, Offset: 0x20 Timer 2 */
+                uint32_t RESERVED0[996];      /*!< Offset: 0x040 - 0xFCC */
+    const volatile     uint32_t PID4;
+    const volatile     uint32_t PID5;
+    const volatile     uint32_t PID6;
+    const volatile     uint32_t PID7;
+    const volatile     uint32_t PID0;
+    const volatile     uint32_t PID1;
+    const volatile     uint32_t PID2;
+    const volatile     uint32_t PID3;
+    const volatile     uint32_t CID0;
+    const volatile     uint32_t CID1;
+    const volatile     uint32_t CID2;
+    const volatile     uint32_t CID3;
+} CMSDK_DUALTIMER_TypeDef;
+
+/* CMSDK_DUALTIMER CONTROL Register Definitions (ARM DDI 0479, CMSDK APB
+ * dual-input timer).  Reset value is 0x20 (interrupt enable set). */
+
+#define CMSDK_DUALTIMER_CTRL_ONESHOT_Pos      0                                              /*!< 1: one-shot, 0: wrapping/periodic */
+#define CMSDK_DUALTIMER_CTRL_ONESHOT_Msk      (0x01ul << CMSDK_DUALTIMER_CTRL_ONESHOT_Pos)
+
+#define CMSDK_DUALTIMER_CTRL_SIZE_Pos         1                                              /*!< 1: 32-bit counter, 0: 16-bit counter */
+#define CMSDK_DUALTIMER_CTRL_SIZE_Msk         (0x01ul << CMSDK_DUALTIMER_CTRL_SIZE_Pos)
+
+#define CMSDK_DUALTIMER_CTRL_PRESCALE_Pos     2                                              /*!< 2-bit prescale field */
+#define CMSDK_DUALTIMER_CTRL_PRESCALE_Msk     (0x03ul << CMSDK_DUALTIMER_CTRL_PRESCALE_Pos)
+#define CMSDK_DUALTIMER_CTRL_PRESCALE_DIV1    (0x00ul << CMSDK_DUALTIMER_CTRL_PRESCALE_Pos)  /*!< divide by 1 */
+#define CMSDK_DUALTIMER_CTRL_PRESCALE_DIV16   (0x01ul << CMSDK_DUALTIMER_CTRL_PRESCALE_Pos)  /*!< divide by 16 */
+#define CMSDK_DUALTIMER_CTRL_PRESCALE_DIV256  (0x02ul << CMSDK_DUALTIMER_CTRL_PRESCALE_Pos)  /*!< divide by 256 */
+
+#define CMSDK_DUALTIMER_CTRL_IRQEN_Pos        5                                              /*!< 1: interrupt enabled */
+#define CMSDK_DUALTIMER_CTRL_IRQEN_Msk        (0x01ul << CMSDK_DUALTIMER_CTRL_IRQEN_Pos)
+
+#define CMSDK_DUALTIMER_CTRL_PERIODIC_Pos     6                                              /*!< 1: periodic, 0: free-running */
+#define CMSDK_DUALTIMER_CTRL_PERIODIC_Msk     (0x01ul << CMSDK_DUALTIMER_CTRL_PERIODIC_Pos)
+
+#define CMSDK_DUALTIMER_CTRL_EN_Pos           7                                              /*!< 1: timer enabled */
+#define CMSDK_DUALTIMER_CTRL_EN_Msk           (0x01ul << CMSDK_DUALTIMER_CTRL_EN_Pos)
+
+/* RIS/MIS are per channel and only use bit 0. */
+#define CMSDK_DUALTIMER_INT_Pos               0
+#define CMSDK_DUALTIMER_INT_Msk               (0x01ul << CMSDK_DUALTIMER_INT_Pos)
+
+/*@}*/ /* end of group CMSDK_DUALTIMER */
+
+#define CMSDK_DUALTIMER         ((CMSDK_DUALTIMER_TypeDef *) DUALTIMER_BASE)
+
+/*------------------------- Real Time Clock (PL031) -------------------------*/
+/** @addtogroup CMSDK_RTC CMSDK/PL031 Real Time Clock
+  memory mapped structure for the Arm PL031 RTC
+  @{
+*/
+typedef struct
+{
+    volatile          uint32_t  DR;         /*!< Offset: 0x000 Data Register (R/W) */
+    volatile          uint32_t  MR;         /*!< Offset: 0x004 Match Register (R/W) */
+    volatile          uint32_t  LR;         /*!< Offset: 0x008 Load Register (R/W) */
+    volatile          uint32_t  CR;         /*!< Offset: 0x00C Control Register (R/W) */
+    volatile          uint32_t  IMSC;       /*!< Offset: 0x010 Interrupt Mask Set/Clear (R/W) */
+    const volatile    uint32_t  RIS;        /*!< Offset: 0x014 Raw Interrupt Status (R/ ) */
+    const volatile    uint32_t  MIS;        /*!< Offset: 0x018 Masked Interrupt Status (R/ ) */
+    volatile          uint32_t  ICR;        /*!< Offset: 0x01C Interrupt Clear Register ( /W) */
+                uint32_t  RESERVED0[1004];  /*!< Offset: 0x020 - 0xFCC */
+    const volatile     uint32_t PID4;
+    const volatile     uint32_t PID5;
+    const volatile     uint32_t PID6;
+    const volatile     uint32_t PID7;
+    const volatile     uint32_t PID0;
+    const volatile     uint32_t PID1;
+    const volatile     uint32_t PID2;
+    const volatile     uint32_t PID3;
+    const volatile     uint32_t CID0;
+    const volatile     uint32_t CID1;
+    const volatile     uint32_t CID2;
+    const volatile     uint32_t CID3;
+} CMSDK_RTC_TypeDef;
+
+/* CMSDK_RTC CR Register Definitions */
+#define CMSDK_RTC_CR_RTCEN_Pos                0
+#define CMSDK_RTC_CR_RTCEN_Msk                (0x01ul << CMSDK_RTC_CR_RTCEN_Pos)  /*!< 1: counter enabled */
+
+/* CMSDK_RTC IMSC/RIS/MIS/ICR Register Definitions */
+#define CMSDK_RTC_INT_MATCH_Pos               0
+#define CMSDK_RTC_INT_MATCH_Msk               (0x01ul << CMSDK_RTC_INT_MATCH_Pos) /*!< Match interrupt */
+
+/*@}*/ /* end of group CMSDK_RTC */
+
+#define CMSDK_RTC               ((CMSDK_RTC_TypeDef     *) SYS_RTC_BASE )
