@@ -42,6 +42,15 @@ static uint32_t sram_address_pattern(uintptr_t address);
 static sram_test_result_t sram_address_pattern_test(
     volatile uint32_t *mem,
     size_t words);
+static sram_test_result_t sram_byte_pattern_test(
+    volatile uint8_t *mem,
+    size_t bytes);
+static sram_test_result_t sram_byte_in_word_test(
+    volatile uint8_t *mem,
+    size_t words);
+static sram_test_result_t sram_halfword_pattern_test(
+    volatile uint16_t *mem,
+    size_t halfwords);
 sram_test_result_t sram_test(
     uintptr_t base_address,
     size_t test_size);
@@ -210,6 +219,93 @@ static sram_test_result_t sram_address_pattern_test(
 }
 
 /*
+ * Byte (8-bit) access tests.
+ *
+ * The 32-bit tests above cannot see a byte-lane problem: if the SRAM only
+ * commits one byte per 8-byte beat, every 32-bit word write still reads back
+ * correctly as long as it is 32-bit aligned.  These tests write and read every
+ * byte individually, then build words out of byte stores and read them back as
+ * words, which catches dropped or mis-laned byte writes.
+ */
+static sram_test_result_t sram_byte_pattern_test(
+    volatile uint8_t *mem,
+    size_t bytes)
+{
+    for (size_t i = 0; i < bytes; i++) {
+        mem[i] = (uint8_t)(i * 7u + 0x5Au);
+    }
+
+    sram_test_barrier();
+
+    for (size_t i = 0; i < bytes; i++) {
+        uint8_t expected = (uint8_t)(i * 7u + 0x5Au);
+        uint8_t actual = mem[i];
+
+        if (actual != expected) {
+            return sram_result(
+                SRAM_TEST_PATTERN_FAILURE,
+                (uintptr_t)&mem[i],
+                expected, actual, "byte pattern");
+        }
+    }
+
+    return sram_result(SRAM_TEST_PASS, 0, 0, 0, "byte pattern");
+}
+
+static sram_test_result_t sram_byte_in_word_test(
+    volatile uint8_t *mem,
+    size_t words)
+{
+    for (size_t w = 0; w < words; w++) {
+        mem[w * 4u + 0u] = 0x11u;
+        mem[w * 4u + 1u] = 0x22u;
+        mem[w * 4u + 2u] = 0x33u;
+        mem[w * 4u + 3u] = 0x44u;
+    }
+
+    sram_test_barrier();
+
+    for (size_t w = 0; w < words; w++) {
+        volatile uint32_t *word = (volatile uint32_t *)&mem[w * 4u];
+        uint32_t actual = *word;
+
+        if (actual != 0x44332211u) {
+            return sram_result(
+                SRAM_TEST_PATTERN_FAILURE,
+                (uintptr_t)word,
+                0x44332211u, actual, "byte in word");
+        }
+    }
+
+    return sram_result(SRAM_TEST_PASS, 0, 0, 0, "byte in word");
+}
+
+static sram_test_result_t sram_halfword_pattern_test(
+    volatile uint16_t *mem,
+    size_t halfwords)
+{
+    for (size_t i = 0; i < halfwords; i++) {
+        mem[i] = (uint16_t)(i * 0x0101u + 0x1234u);
+    }
+
+    sram_test_barrier();
+
+    for (size_t i = 0; i < halfwords; i++) {
+        uint16_t expected = (uint16_t)(i * 0x0101u + 0x1234u);
+        uint16_t actual = mem[i];
+
+        if (actual != expected) {
+            return sram_result(
+                SRAM_TEST_PATTERN_FAILURE,
+                (uintptr_t)&mem[i],
+                expected, actual, "halfword pattern");
+        }
+    }
+
+    return sram_result(SRAM_TEST_PASS, 0, 0, 0, "halfword pattern");
+}
+
+/*
  * Main SRAM test.
  *
  * base_address: byte address of SRAM start
@@ -286,6 +382,24 @@ sram_test_result_t sram_test(
 
     /* 6. Address-dependent data */
     result = sram_address_pattern_test(mem, words);
+    if (result.status != SRAM_TEST_PASS)
+        return result;
+
+    /* 7. Byte accesses (aligned and unaligned) */
+    result = sram_byte_pattern_test(
+        (volatile uint8_t *)mem, test_size);
+    if (result.status != SRAM_TEST_PASS)
+        return result;
+
+    /* 8. Words assembled from byte stores */
+    result = sram_byte_in_word_test(
+        (volatile uint8_t *)mem, words);
+    if (result.status != SRAM_TEST_PASS)
+        return result;
+
+    /* 9. Halfword accesses */
+    result = sram_halfword_pattern_test(
+        (volatile uint16_t *)mem, test_size / sizeof(uint16_t));
     if (result.status != SRAM_TEST_PASS)
         return result;
 

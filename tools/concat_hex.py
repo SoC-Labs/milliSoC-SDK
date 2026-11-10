@@ -79,6 +79,27 @@ def word_to_hex_bytes(value):
     return [f"{(value >> (8 * i)) & 0xFF:02X}" for i in range(BYTES_PER_WORD)]
 
 
+def parse_blob(spec):
+    """Parse an OFFSET:FILE blob specification."""
+    if ":" not in spec:
+        sys.exit(f"ERROR: --blob expects OFFSET:FILE, got '{spec}'")
+    offset_str, path = spec.split(":", 1)
+    try:
+        offset = int(offset_str, 0)
+    except ValueError:
+        sys.exit(f"ERROR: --blob: bad offset '{offset_str}'")
+    if offset < 0:
+        sys.exit(f"ERROR: --blob: offset 0x{offset:X} is negative")
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError as exc:
+        sys.exit(f"ERROR: --blob: cannot read {path}: {exc}")
+    if not data:
+        sys.exit(f"ERROR: --blob: {path} is empty")
+    return offset, data, path
+
+
 def concat_hex(args):
     m_data = parse_hex(args.m_hex)
     r_data = parse_hex(args.r_hex)
@@ -98,23 +119,48 @@ def concat_hex(args):
 
     preamble_words = [m_offset, m_size_words, r_offset, r_size_words]
 
+    # Build the code image (preamble + M + R), then append any extra blobs
+    # (for example the Vela model image) at fixed flash offsets.
+    image = bytearray()
+    for word in preamble_words:
+        for byte_str in word_to_hex_bytes(word):
+            image.append(int(byte_str, 16))
+    image.extend(m_data)
+    image.extend(r_data)
+    code_size = len(image)
+
+    blobs = sorted((parse_blob(spec) for spec in args.blob),
+                   key=lambda item: item[0])
+    cursor = code_size
+    for offset, data, path in blobs:
+        if offset < code_size:
+            sys.exit(f"ERROR: blob {path} at 0x{offset:08X} overlaps the code "
+                     f"image (ends at 0x{code_size:08X})")
+        if offset < cursor:
+            sys.exit(f"ERROR: blob {path} at 0x{offset:08X} overlaps a previous "
+                     f"blob (ends at 0x{cursor:08X})")
+        # Erased flash is 0xFF; fill the gap so the image stays contiguous.
+        image.extend(b"\xFF" * (offset - cursor))
+        image.extend(data)
+        cursor = offset + len(data)
+
     out_dir = os.path.dirname(args.output)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
 
-    with open(args.output, "w") as f:
-        for word in preamble_words:
-            for byte_str in word_to_hex_bytes(word):
-                f.write(byte_str + "\n")
-        for data in (m_data, r_data):
-            for byte_val in data:
-                f.write(f"{byte_val:02X}\n")
+    with open(args.output, "w", newline="\n") as f:
+        for byte_val in image:
+            f.write(f"{byte_val:02X}\n")
 
     print(f"Generated {args.output}")
     print(f"  M image: offset 0x{m_offset:08X}, "
           f"{len(m_data)} bytes ({m_size_words} words), from {args.m_hex}")
     print(f"  R image: offset 0x{r_offset:08X}, "
           f"{len(r_data)} bytes ({r_size_words} words), from {args.r_hex}")
+    for offset, data, path in blobs:
+        print(f"  blob   : offset 0x{offset:08X}, "
+              f"{len(data)} bytes, from {path}")
+    print(f"  total  : {len(image)} bytes")
 
 
 if __name__ == "__main__":
@@ -129,6 +175,10 @@ if __name__ == "__main__":
                         help="Input R-class hex file (fromelf --vhx byte-per-line)")
     parser.add_argument("-o", "--output", type=str, required=True,
                         help="Output concatenated hex file")
+    parser.add_argument("--blob", action="append", default=[], metavar="OFFSET:FILE",
+                        help="Embed the raw bytes of FILE at flash byte offset OFFSET "
+                             "after the code images (may be repeated, e.g. "
+                             "--blob 0x008000:model.bin). Gaps are filled with 0xFF")
 
     args = parser.parse_args()
     concat_hex(args)

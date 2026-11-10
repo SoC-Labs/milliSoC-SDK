@@ -1,16 +1,22 @@
+/*
+ * milliSoC SRAM test companion (Cortex-R5 side)
+ *
+ * The M85 sram_tests app owns the shared SRAM for the duration of the run
+ * (0x30000000-0x30000FFF from the M85 is 0x20000000-0x20000FFF from the R5),
+ * so this core must not touch the SRAM while that test runs.  It only prints
+ * a marker and idles; the M85 end-of-simulation byte ends the capture.
+ */
+
 #include "CMSDK.h"
 #include "uart_stdout.h"
 #include <stdio.h>
-#include "mhu.h"
-#include "sys_memory_map.h"
 
-#define TEST_SIZE 0x1000
-#define TEST_OFFSET 0x1000
+int main(void)
+{
 
-int main(){
     UartStdOutInit();
 
-    printf("R5: MilliSoC SRAM Tests\n");
+    printf("R5: MilliSoC SRAM test companion (idle)\n");
 
 
     UartEndSimulation();

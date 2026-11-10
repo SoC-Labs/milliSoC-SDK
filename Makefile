@@ -67,6 +67,62 @@ endif
 
 DEPS_LIST       = $(wildcard $(TEST_DIR)/*.h)
 
+# ---------------------------------------------------------------------------------------
+# Ethos-U model flow (Vela)
+# ---------------------------------------------------------------------------------------
+# The compiled model image is stored raw in flash above the code images.  The
+# default base leaves the current M85+R5 image (which ends below 0x7000) clear.
+MODEL             ?= hello_world_int8
+MODEL_DIR         ?= $(SOFTWARE_DIR)/models
+MODEL_BUILD_DIR   ?= $(BUILD_DIR)/models
+MODEL_FLASH_BASE  ?= 0x008000
+ACCEL_CONFIG      ?= ethos-u85-256
+VELA              ?= vela
+# Vela resolves --config relative to its own config_files directory, so pass an
+# absolute path.
+VELA_CONFIG        ?= $(abspath $(MODEL_DIR)/millisoc_vela.ini)
+VELA_SYSTEM_CONFIG ?= MilliSoC_U85
+VELA_MEMORY_MODE   ?= MilliSoC_Flash
+
+# APPEND_MODEL=1 embeds the model image in <app>.hex at MODEL_FLASH_BASE, so a
+# single flash operation programs both the code and the model.
+APPEND_MODEL      ?= 0
+
+# 0: the M85 copies the image from flash into SRAM before running it (works on
+#    the current FPGA, where the NPU cannot reach the flash window).
+# 1: the NPU fetches the command stream and weights from flash (needs the RTL
+#    change that gives the Ethos-U bus access to the QSPI XiP window).
+MODEL_RUN_FROM_FLASH ?= 0
+
+MODEL_NPZ         = $(MODEL_BUILD_DIR)/$(MODEL)_vela.npz
+MODEL_IMAGE_BIN   = $(MODEL_BUILD_DIR)/$(MODEL)_image.bin
+MODEL_IMAGE_HEX   = $(MODEL_BUILD_DIR)/$(MODEL)_image.hex
+MODEL_IMAGE_JSON  = $(MODEL_BUILD_DIR)/$(MODEL)_image.json
+MODEL_IMAGE_H     = $(MODEL_BUILD_DIR)/$(MODEL)_image.h
+
+ifeq ($(APPEND_MODEL),1)
+  MODEL_HEX_DEP = $(MODEL_IMAGE_HEX)
+else
+  MODEL_HEX_DEP =
+endif
+
+# The application hex depends on APPEND_MODEL; rewrite this stamp only when the
+# value changes so toggling it triggers a rebuild of the combined image.
+APPEND_MODEL_STAMP = $(BUILD_DIR)/$(TESTNAME)/append_model
+
+# Forward the model layout to the u85_model app.
+ifeq ($(TESTNAME),u85_model)
+  APP_DEFINES = -DMODEL_FLASH_BASE=$(MODEL_FLASH_BASE) \
+                -DMODEL_RUN_FROM_FLASH=$(MODEL_RUN_FROM_FLASH)
+  # Rebuild the app object when MODEL_RUN_FROM_FLASH changes.  The stamp is
+  # rewritten only when the value differs, so normal builds stay incremental.
+  APP_CONFIG_STAMP = $(BUILD_DIR)/$(TESTNAME)/model_run_from_flash
+  APP_DEPS = $(APP_CONFIG_STAMP)
+else
+  APP_DEFINES =
+  APP_DEPS =
+endif
+
 # Tool chain : ds5 / gcc / keil
 TOOL_CHAIN      = ds6
 
@@ -179,14 +235,29 @@ all: all_$(TOOL_CHAIN)
 all_ds5 : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).hex $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).lst
 all_ds6 : $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).hex $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.lst $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_M.lst
 
+# The app object depends on the model run mode; rewrite this stamp only when
+# MODEL_RUN_FROM_FLASH changes so switching modes triggers a rebuild.
+.PHONY: FORCE
+FORCE:
 
-$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).hex: $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.hex $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_M.hex
-	python3 $(SOFTWARE_DIR)/tools/concat_hex.py -m $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_M.hex -r $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.hex -o $@
+ifeq ($(TESTNAME),u85_model)
+$(APP_CONFIG_STAMP): FORCE
+	@mkdir -p $(dir $@)
+	@echo "$(MODEL_RUN_FROM_FLASH)" | cmp -s - $@ || echo "$(MODEL_RUN_FROM_FLASH)" > $@
+endif
+
+$(APPEND_MODEL_STAMP): FORCE
+	@mkdir -p $(dir $@)
+	@echo "$(APPEND_MODEL)" | cmp -s - $@ || echo "$(APPEND_MODEL)" > $@
+
+
+$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME).hex: $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.hex $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_M.hex $(MODEL_HEX_DEP) $(APPEND_MODEL_STAMP)
+	python3 $(SOFTWARE_DIR)/tools/concat_hex.py -m $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_M.hex -r $(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_R.hex -o $@ $(if $(filter 1,$(APPEND_MODEL)),--blob $(MODEL_FLASH_BASE):$(MODEL_IMAGE_BIN))
 # ---------------------------------------------------------------------------------------
 # Cortex M class build
-$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_M.o :  $(TEST_DIR)/$(TESTNAME)_M.c $(DEPS_LIST)
+$(BUILD_DIR)/$(TESTNAME)/$(TESTNAME)_M.o :  $(TEST_DIR)/$(TESTNAME)_M.c $(DEPS_LIST) $(APP_DEPS)
 	mkdir -p $(BUILD_DIR)/$(TESTNAME)
-	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_OPTS) $< -o  $@
+	$(CC_TOOL) $(ARM_CC_OPTIONS) $(CPU_OPTS) $(APP_DEFINES) $< -o  $@
 
 $(BUILD_DIR)/common/$(SYSTEM_FILE)_M.o : $(DEVICE_DIR)/Source/$(SYSTEM_FILE).c $(DEPS_LIST)
 	mkdir -p $(BUILD_DIR)/common
@@ -336,4 +407,54 @@ uart_hw:
 	$(HW_RUN) --no-flash --log-dir $(BUILD_DIR)/$(TESTNAME) \
 	          --m85-port "$(M85_COM)" --r5-port "$(R5_COM)" --baud $(UART_BAUD) \
 	          --timeout $(BOOT_TIMEOUT) $(HW_EXTRA)
+
+# ---------------------------------------------------------------------------------------
+# Ethos-U model flow (Vela)
+# ---------------------------------------------------------------------------------------
+# MODEL, MODEL_FLASH_BASE, ACCEL_CONFIG, VELA_CONFIG, ... are defined near the
+# top of this file because the application hex rule uses them for APPEND_MODEL.
+
+.PHONY: model model_report flash_model
+
+# Compile the source model with Vela (raw output) and pack the command stream
+# and weights into a self-describing flash image.
+model: $(MODEL_IMAGE_HEX)
+
+$(MODEL_BUILD_DIR):
+	mkdir -p $@
+
+# Raw output is what the NPU consumes: cmd_data, weight_data and the region /
+# I/O metadata.  The .tflite output is not needed at run time.
+$(MODEL_NPZ): $(MODEL_DIR)/$(MODEL).tflite $(VELA_CONFIG) | $(MODEL_BUILD_DIR)
+	$(VELA) $< --config "$(VELA_CONFIG)" \
+	          --accelerator-config $(ACCEL_CONFIG) \
+	          --system-config $(VELA_SYSTEM_CONFIG) \
+	          --memory-mode $(VELA_MEMORY_MODE) \
+	          --output-format raw \
+	          --output-dir $(MODEL_BUILD_DIR)
+
+# Packs the header + command stream + 64-byte-aligned weights.  The .bin is
+# what goes into flash (and what APPEND_MODEL embeds); the .hex is the
+# byte-per-line form used by the flash programmer.
+$(MODEL_IMAGE_HEX): $(MODEL_NPZ) $(SOFTWARE_DIR)/tools/model_to_image.py
+	python3 $(SOFTWARE_DIR)/tools/model_to_image.py \
+	        --input $< --output-dir $(MODEL_BUILD_DIR) \
+	        --name $(MODEL) --base $(MODEL_FLASH_BASE)
+
+# Re-run Vela and write its supported-operators report into the build directory.
+model_report: $(MODEL_DIR)/$(MODEL).tflite $(VELA_CONFIG) | $(MODEL_BUILD_DIR)
+	cd $(MODEL_BUILD_DIR) && $(VELA) $(abspath $(MODEL_DIR)/$(MODEL).tflite) \
+	          --config "$(VELA_CONFIG)" \
+	          --accelerator-config $(ACCEL_CONFIG) \
+	          --system-config $(VELA_SYSTEM_CONFIG) \
+	          --memory-mode $(VELA_MEMORY_MODE) \
+	          --output-dir . --supported-ops-report
+
+# Flash only the model image.  This erases the 4-KiB sectors it spans and
+# leaves the code image below it intact.
+flash_model: $(MODEL_IMAGE_HEX)
+	$(HW_RUN) --hex $(MODEL_IMAGE_HEX) --flash-base $(MODEL_FLASH_BASE) --flash-only \
+	          --log-dir $(MODEL_BUILD_DIR) \
+	          --cdb-root "$(CDB_ROOT)" --cdb-entry "$(CDB_ENTRY)" \
+	          --connection $(DSTREAM_CONN) $(HW_EXTRA)
 
