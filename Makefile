@@ -138,9 +138,9 @@ ARM_CC_OPTIONS   = $(ARM_TARGET) -c -D_FPU -mthumb -I $(DEVICE_DIR)/Include -I $
 		   -I $(SOFTWARE_DIR)/libs/Drivers/Include  \
 		   -I $(SOFTWARE_DIR)/libs/common/retarget $(USER_DEFINE)
 
-ifeq ($(TESTNAME),timer_tests)
+ifneq ($(filter $(TESTNAME),timer_tests mhu_tests),)
   # The R5 image must fit in the 16 KiB ITCM that the bootloader fills;
-  # -O0 overflows it, so use -O2 for this app.
+  # -O0 overflows it, so use -O2 for these apps.
   R5_OPT = -O2
 else
   R5_OPT = -O0

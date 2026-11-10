@@ -61,10 +61,10 @@
  * a ~10 MHz clock. Override both for silicon or a different bitstream.
  */
 #ifndef U85_NPU_CLOCK_HZ
-#define U85_NPU_CLOCK_HZ        10000000UL
+#define U85_NPU_CLOCK_HZ        8000000UL
 #endif
 #ifndef U85_HOST_CLOCK_HZ
-#define U85_HOST_CLOCK_HZ       10000000UL
+#define U85_HOST_CLOCK_HZ       8000000UL
 #endif
 
 #define U85_CMD_AREA_SIZE       0x1000UL

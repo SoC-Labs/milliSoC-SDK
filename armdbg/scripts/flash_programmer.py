@@ -35,6 +35,12 @@ def ds(s):
 def wr(a, v):
     ds("memory set AXI:0x%08X 32 0x%08X" % (a, v & 0xFFFFFFFF))
 
+def wr4(a, v0, v1, v2, v3):
+    """Write four consecutive 32-bit words in one debugger command."""
+    ds("memory set AXI:0x%08X 32 {0x%08X,0x%08X,0x%08X,0x%08X}" %
+       (a, v0 & 0xFFFFFFFF, v1 & 0xFFFFFFFF,
+        v2 & 0xFFFFFFFF, v3 & 0xFFFFFFFF))
+
 def rd(a, n):
     out = ds("x/%dwx AXI:0x%08X" % (n, a))
     vals = re.findall(r"0x([0-9A-Fa-f]+)", out)
@@ -137,10 +143,11 @@ def program(address, data):
     wren()
     wr(ADDR, address)
     padded = list(data) + [0xFF] * (MAX_XFER - n)
+    words = []
     for k in range(4):
         b = padded[k*4:k*4+4]
-        word = b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24)
-        wr(WDATA + 4*k, word)
+        words.append(b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24))
+    wr4(WDATA, words[0], words[1], words[2], words[3])
     # Page Program 02h, WRITE + ADDR_EN, count-1 in [19:16].
     command((((n - 1) & 0xF) << 16) | 0x00000D02)
     wait_ready(5.0, "page program 0x%06X" % address)
@@ -222,6 +229,7 @@ def main():
     else:
         log("Skipping global block protection unlock")
 
+    t_phase = time.time()
     log("Erasing...")
     a = first_sector
     while a <= last_sector:
@@ -230,13 +238,17 @@ def main():
         if VERIFY_ERASE:
             verify_erased(a)
         a += SECTOR
+    log("Erase phase: %.1f s" % (time.time() - t_phase))
 
+    t_phase = time.time()
     log("Programming...")
     for i, (a, payload) in enumerate(nchunks):
         program(a, payload)
         if (i + 1) % 64 == 0 or i + 1 == len(nchunks):
             log("  %d/%d transactions" % (i + 1, len(nchunks)))
+    log("Program phase: %.1f s" % (time.time() - t_phase))
 
+    t_phase = time.time()
     log("Verifying...")
     done = 0
     for a, payload in nchunks:
@@ -246,6 +258,7 @@ def main():
                 raise Exception("VERIFY FAIL at 0x%06X: expected %02X, got %02X" %
                                 (a+i, expected, actual[i]))
         done += len(payload)
+    log("Verify phase: %.1f s" % (time.time() - t_phase))
 
     log("SUCCESS: %d bytes programmed and verified." % done)
     log("Range: 0x%06X..0x%06X" % (base, end - 1))
@@ -257,3 +270,4 @@ try:
 except Exception, e:
     log("ERROR: %s" % e)
     raise
+

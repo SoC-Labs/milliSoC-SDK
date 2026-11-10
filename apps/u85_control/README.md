@@ -31,7 +31,7 @@ With the DSTREAM connected and the UART terminals closed:
 make run_hw TESTNAME=u85_control
 ```
 
-This builds, flashes over DSTREAM (~50 s), opens the M85 and R5 UARTs, and
+This builds, flashes over DSTREAM (typically ~1 min), opens the M85 and R5 UARTs, and
 streams the output until the M85 sends the end-of-simulation byte. It saves
 `uart_M85.log`, `uart_R5.log` and `flash.log` in `build/u85_control/` and exits
 non-zero if a `FAIL` line appears or the end marker never arrives.

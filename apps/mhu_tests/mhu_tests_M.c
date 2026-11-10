@@ -1,69 +1,113 @@
-#include "exectb_mcu.h"
-#include "CMSDK.h"
-#include "uart_stdout.h"
-#include <stdio.h>
-#include "mhu.h"
+/*
+ * milliSoC MHU-320AE verification - Cortex-M85 side
+ *
+ * Runs the shared lockstep suite (mhu_tests_common.h) against both MHUs and
+ * takes the M85 role in every step.  The R5 runs the mirror image of the same
+ * suite on its own UART.
+ */
 
-int main(){
-    int PID;
+#include <stdint.h>
+#include "exectb_mcu.h"
+
+/* Time reference: Cortex-M85 DWT cycle counter. */
+static int core_cycles_init(void)
+{
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    DWT->CYCCNT = 0u;
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+
+    return (DWT->CTRL & DWT_CTRL_CYCCNTENA_Msk) != 0u;
+}
+
+static uint32_t core_cycles_read(void)
+{
+    return DWT->CYCCNT;
+}
+
+#define MHUT_CORE_IS_M 1
+#include "mhu_tests_common.h"
+
+/* ------------------------------------------------------------------------- */
+/* Receiver interrupt handlers                                               */
+/* ------------------------------------------------------------------------- */
+void IPC_REC_MBXHandler(void)
+{
+    mhut_db_irq_body();
+}
+
+void IPC_REC_FSTHandler(void)
+{
+    mhut_fc_irq_body();
+}
+
+/* Not enabled by this app; recorded so a spurious interrupt is visible. */
+void IPC_SND_ERRHandler(void)
+{
+    mhut_unexpected_irq = 1u;
+}
+
+void IPC_SND_FLTHandler(void)
+{
+    mhut_unexpected_irq = 2u;
+}
+
+void IPC_SND_PBXHandler(void)
+{
+    mhut_unexpected_irq = 3u;
+}
+
+void IPC_REC_ERRHandler(void)
+{
+    mhut_unexpected_irq = 4u;
+}
+
+void IPC_REC_FLTHandler(void)
+{
+    mhut_unexpected_irq = 5u;
+}
+
+/* ------------------------------------------------------------------------- */
+/* Interrupt controller hooks                                                */
+/* ------------------------------------------------------------------------- */
+static void mhut_irq_init(void)
+{
+    NVIC_DisableIRQ(IPC_REC_MBX_IRQn);
+    NVIC_DisableIRQ(IPC_REC_FST_IRQn);
+    NVIC_ClearPendingIRQ(IPC_REC_MBX_IRQn);
+    NVIC_ClearPendingIRQ(IPC_REC_FST_IRQn);
+    NVIC_SetPriority(IPC_REC_MBX_IRQn, 1u);
+    NVIC_SetPriority(IPC_REC_FST_IRQn, 1u);
+    NVIC_EnableIRQ(IPC_REC_MBX_IRQn);
+    NVIC_EnableIRQ(IPC_REC_FST_IRQn);
+}
+
+static void mhut_irq_mask(int masked)
+{
+    if (masked) {
+        __disable_irq();
+    } else {
+        __enable_irq();
+    }
+}
+
+static void mhut_irq_ack(void)
+{
+    /* The NVIC deasserts the pending bit once the MHU source is cleared. */
+}
+
+int main(void)
+{
     UartStdOutInit();
 
-    printf("M85: MilliSoC MHU Tests\n");
-    
-    NVIC_EnableIRQ(IPC_SND_ERR_IRQn);
-    NVIC_EnableIRQ(IPC_SND_FLT_IRQn);
-    NVIC_EnableIRQ(IPC_SND_PBX_IRQn);
-    NVIC_EnableIRQ(IPC_REC_FST_IRQn);
-    NVIC_EnableIRQ(IPC_REC_ERR_IRQn);
-    NVIC_EnableIRQ(IPC_REC_FLT_IRQn);
-    NVIC_EnableIRQ(IPC_REC_MBX_IRQn);
-    __enable_irq();
-    printf("MHU SND 0x%02x \n", MHUS_PBX->PIDR0);
-    printf("MHU SND 0x%02x \n", *(volatile uint32_t *) (MHU_SND+0x10fe0));
-    printf("MHU REC 0x%02x \n", MHUR_MBX->PIDR0);
-    printf("MHU REC 0x%02x \n", *(volatile uint32_t *) (MHU_REC+0x10fe0));
-    __WFI();
-    printf("Got doorbell\n");
+    mhut_run_suite("M85");
+
+    /* The R5 runs its own copy of the suite; give it time to print before
+     * the harness stops on our end-of-simulation byte. */
+    printf("\nM85: waiting for the R5 suite to finish\n");
+    mh_delay(MHUT_MS(8000));
+
+    printf("M85: end of simulation\n");
     UartEndSimulation();
-}
 
-
-void IPC_SND_ERRHandler(void){
-    printf("IPC_SND_ERR\n");
-    while(1);
+    return 0;
 }
-void IPC_SND_FLTHandler(void){
-    printf("IPC SND FLT\n");
-    while(1);
-}
-void IPC_SND_PBXHandler(void){
-    printf("IPC SND PBX \n");
-    while(1);
-}
-void IPC_REC_FSTHandler(void){
-    printf("IPC REC FST\n");
-    while(1);
-}
-void IPC_REC_ERRHandler(void){
-    printf("IPC REC ERR\n");
-    while(1);
-}
-void IPC_REC_FLTHandler(void){
-    printf("IPC REC FLT\n");
-    while(1);
-}
-void IPC_REC_MBXHandler(void){
-    __disable_irq();
-    uint32_t DB_ST;
-    DB_ST=MHUR_MBX->DBCH_INT_ST[0];
-    if(DB_ST&0x1){
-        // bit 0 set
-        MHUR_MBX->MDBCW[0].CLR=1;
-        while(MHUR_MBX->DBCH_INT_ST[0]&0x1){;} // Wait for actual clear
-    } else{
-        printf("IPX MBX err\n");
-        UartEndSimulation();
-    }
-    __enable_irq();
-}
-

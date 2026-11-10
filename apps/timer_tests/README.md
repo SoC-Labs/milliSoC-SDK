@@ -81,7 +81,7 @@ With the DSTREAM connected and the UART terminals closed:
 make run_hw TESTNAME=timer_tests
 ```
 
-This flashes over DSTREAM (~50 s), captures both UARTs until the M85 sends the
+This flashes over DSTREAM (typically ~1 min), captures both UARTs until the M85 sends the
 end-of-simulation byte, saves `uart_M85.log`, `uart_R5.log` and `flash.log` in
 `build/timer_tests/`, and exits non-zero if a `FAIL` line appears or the end
 marker never arrives.
