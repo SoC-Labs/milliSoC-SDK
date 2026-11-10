@@ -8,12 +8,25 @@ This app is the end-to-end AI/ML demonstrator for the milliSoC:
 3. it either copies the image into the NPU-visible SRAM at `0x30000000` or
    leaves it in flash (see [Run modes](#run-modes)),
 4. it configures the Ethos-U85 memory attributes, regions and `BASEP_ARRAY`,
-5. it runs the Vela command stream once per test vector and checks the int8
-   output against the reference results.
+5. it runs the Vela command stream for each test vector and checks the int8
+   output against the reference results,
+6. it repeats the verified inferences to measure NPU compute throughput.
 
 The model is the TensorFlow Lite Micro `hello_world_int8` sine benchmark
-(3 fully-connected layers, 280 MACs). It is small enough that the whole image
-fits in one 4 KiB flash sector and one SRAM page.
+(3 fully-connected layers, 280 MACs per inference). The 100-repeat benchmark
+uses nine known inputs (900 inferences, 252,000 model MACs) and checks every
+measured output. This is a real compute workload, but its small size makes it
+a functional/throughput smoke test rather than a representative large-network
+benchmark.
+
+The reported `MMAC/s` is calculated from model MAC count and U85 PMU cycles.
+`GOPS` uses the common convention of two operations per MAC. Effective
+MAC-array utilization compares measured MACs/cycle against the configured
+256-MAC array's theoretical one-MAC-per-unit-per-cycle peak; it is an
+inferred workload utilization, not a hardware activity-counter reading. The
+absolute throughput assumes an 8 MHz NPU clock, matching the current FPGA
+configuration. Change `MODEL_NPU_CLOCK_HZ` and `MODEL_HOST_CLOCK_HZ` in
+`u85_model_M.c` if the bitstream clocks differ.
 
 ## Build
 
@@ -169,8 +182,20 @@ U85 inference:
   ...
   [8] input  127 -> out   -9 (expected   -9) PASS
 U85 inference: 9/9 PASS
+Model inference verification PASS
+U85 compute benchmark: 100 repeats x 9 vectors, 900/900 PASS
+Model compute: 280 MAC/inference, 900 inferences, 252000 MACs total
+U85 compute PMU: 706373 cycles, 2.803 cycles/MAC
+U85 compute throughput: 2.854 MMAC/s, 0.005708 GOPS at 8 MHz NPU clock
+U85 effective MAC-array utilization: 0.139% (assuming 256 MAC units)
+M85 benchmark wall time: 99973.750 us at 8 MHz, 2.520 MMAC/s
 Model run PASS
 ```
+
+These are representative FPGA measurements, not guaranteed constants. The
+model's 280 MACs per inference are tiny compared with the 256-unit array, and
+command setup and synchronization also cost cycles; this result is therefore
+not expected to approach the theoretical peak of 4.096 GOPS at 8 MHz.
 
 The R5 companion prints one banner line and parks in `WFI`; it deliberately
 does not call `UartEndSimulation()`, so the end marker comes from the M85 after
@@ -204,6 +229,6 @@ make flash_model
   path is implemented and selected with `MODEL_RUN_FROM_FLASH=1`, but needs the
   RTL fix before it can pass on hardware.
 * The app runs the command stream synchronously, polling `STATUS`; it does not
-  use the NPU interrupt or the PMU. The `u85_control` app shows both.
+  use the NPU interrupt. The compute benchmark uses the U85 PMU cycle counter.
 * The arena is deliberately small (4 KiB) and the model only needs 64 bytes.
   Increase `MODEL_ARENA_SIZE` if a larger model is used.

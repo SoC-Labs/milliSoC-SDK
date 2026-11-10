@@ -68,6 +68,16 @@ int main (void)
   }
   DmaMemcpy(R_image_start + FLASH_BASE, R_image_size, 0x80000000);
 
+  /*
+   * The M85 is released during the DMA copies, so it may have started the
+   * image left in ITCM. Hold and reset it now that the new image is loaded,
+   * then release it to start from the freshly populated ITCM.
+   */
+  sysctrl->cpu_mx_wait = 1U;
+  __DSB();
+  sysctrl->reset_command = SYSCTRL_RESET_COMMAND_M85;
+  __DSB();
+
   printf("Start main program\n\n");
   printf("***********************\n");
 

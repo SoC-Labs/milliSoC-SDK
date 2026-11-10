@@ -6,7 +6,7 @@
  *   2. configures the AXI attributes, memory regions and base pointers,
  *   3. builds a command stream of mem2mem DMA operations in shared SRAM,
  *   4. runs the stream repeatedly and checks the copied data,
- *   5. reports NPU efficiency (cycles/op, ops/cycle) from the U85 PMU cycle
+ *   5. reports DMA descriptor efficiency from the U85 PMU cycle
  *      counter and the absolute rate from the M85 DWT cycle counter.
  *
  * The command stream is a hand-built sequence of Ethos-U85 commands, so the
@@ -53,12 +53,12 @@
 
 /*
  * Clock rates. The M85 DWT counter is the absolute time reference, so
- * U85_HOST_CLOCK_HZ must be the real M85 clock for the Mops/s figure to be
- * correct. U85_NPU_CLOCK_HZ is only cross-checked against the measured
+ * U85_HOST_CLOCK_HZ must be the real M85 clock for the descriptor/s figure
+ * to be correct. U85_NPU_CLOCK_HZ is only cross-checked against the measured
  * PMU/DWT cycle ratio; a mismatch is reported as a warning.
  *
  * Defaults match the current FPGA bitstream, where the M85 and the U85 share
- * a ~10 MHz clock. Override both for silicon or a different bitstream.
+ * an ~8 MHz clock. Override both for silicon or a different bitstream.
  */
 #ifndef U85_NPU_CLOCK_HZ
 #define U85_NPU_CLOCK_HZ        8000000UL
@@ -326,21 +326,31 @@ static int host_cycles_init(void)
 /* Reporting                                                                 */
 /* ------------------------------------------------------------------------- */
 static void report_throughput(uint64_t npu_cycles, uint64_t host_cycles,
-                              uint32_t total_ops)
+                              uint64_t ratio_host_cycles,
+                              uint32_t total_descriptors,
+                              uint32_t runs_failed)
 {
+    if (runs_failed != 0U)
+    {
+        printf("U85 DMA throughput: not reported (%lu runs failed)\n",
+               (unsigned long)runs_failed);
+        return;
+    }
+
     if (npu_cycles != 0ULL)
     {
-        uint64_t cycles_per_op_x1000 = (npu_cycles * 1000ULL) / total_ops;
-        uint64_t kops_per_ghz_x1000 =
-            ((uint64_t)total_ops * 1000000000ULL) / npu_cycles;
+        uint64_t cycles_per_descriptor_x1000 =
+            (npu_cycles * 1000ULL) / total_descriptors;
+        uint64_t kdescriptors_per_ghz_x1000 =
+            ((uint64_t)total_descriptors * 1000000000ULL) / npu_cycles;
 
-        printf("U85 PMU cycles: %llu total, %llu.%03llu cycles/op\n",
+        printf("U85 PMU cycles: %llu total, %llu.%03llu cycles/descriptor\n",
                (unsigned long long)npu_cycles,
-               (unsigned long long)(cycles_per_op_x1000 / 1000ULL),
-               (unsigned long long)(cycles_per_op_x1000 % 1000ULL));
-        printf("U85 efficiency: %llu.%03llu kops/s/GHz\n",
-               (unsigned long long)(kops_per_ghz_x1000 / 1000ULL),
-               (unsigned long long)(kops_per_ghz_x1000 % 1000ULL));
+               (unsigned long long)(cycles_per_descriptor_x1000 / 1000ULL),
+               (unsigned long long)(cycles_per_descriptor_x1000 % 1000ULL));
+        printf("U85 DMA descriptor efficiency: %llu.%03llu kdescriptors/s/GHz\n",
+               (unsigned long long)(kdescriptors_per_ghz_x1000 / 1000ULL),
+               (unsigned long long)(kdescriptors_per_ghz_x1000 % 1000ULL));
     }
     else
     {
@@ -361,11 +371,12 @@ static void report_throughput(uint64_t npu_cycles, uint64_t host_cycles,
     {
         uint64_t us_x1000 =
             (host_cycles * 1000000000ULL) / (uint64_t)U85_HOST_CLOCK_HZ;
-        uint64_t mops_x1000 =
-            ((uint64_t)total_ops * (uint64_t)U85_HOST_CLOCK_HZ * 1000ULL) /
+        uint64_t mdescriptors_x1000 =
+            ((uint64_t)total_descriptors * (uint64_t)U85_HOST_CLOCK_HZ *
+             1000ULL) /
             (host_cycles * 1000000ULL);
         uint64_t mbytes_x1000 =
-            ((uint64_t)total_ops * (uint64_t)U85_COPY_BYTES *
+            ((uint64_t)total_descriptors * (uint64_t)U85_COPY_BYTES *
              (uint64_t)U85_HOST_CLOCK_HZ * 1000ULL) /
             (host_cycles * 1000000ULL);
 
@@ -374,22 +385,21 @@ static void report_throughput(uint64_t npu_cycles, uint64_t host_cycles,
                (unsigned long long)(us_x1000 / 1000ULL),
                (unsigned long long)(us_x1000 % 1000ULL),
                (unsigned long)(U85_HOST_CLOCK_HZ / 1000000UL));
-        printf("U85 throughput: %llu.%03llu Mops/s, %llu.%03llu MB/s (wall clock)\n",
-               (unsigned long long)(mops_x1000 / 1000ULL),
-               (unsigned long long)(mops_x1000 % 1000ULL),
+        printf("U85 DMA throughput: %llu.%03llu Mdescriptors/s, "
+               "%llu.%03llu MB/s payload (wall clock)\n",
+               (unsigned long long)(mdescriptors_x1000 / 1000ULL),
+               (unsigned long long)(mdescriptors_x1000 % 1000ULL),
                (unsigned long long)(mbytes_x1000 / 1000ULL),
                (unsigned long long)(mbytes_x1000 % 1000ULL));
 
-        if (npu_cycles != 0ULL)
+        if ((npu_cycles != 0ULL) && (ratio_host_cycles != 0ULL))
         {
             /*
-             * Both counters run over the same interval, so their ratio is the
-             * NPU:M85 clock ratio. Use it to sanity-check the configured
-             * clocks: the NPU is busy almost the whole loop, so this is a
-             * good (slightly low) estimate of the real NPU clock.
+             * These counters bracket the same run interval, so their ratio
+             * estimates the NPU:M85 clock ratio.
              */
             uint64_t implied_npu_hz =
-                (uint64_t)U85_HOST_CLOCK_HZ * npu_cycles / host_cycles;
+                (uint64_t)U85_HOST_CLOCK_HZ * npu_cycles / ratio_host_cycles;
             uint64_t configured_hz = (uint64_t)U85_NPU_CLOCK_HZ;
             uint64_t diff = (implied_npu_hz > configured_hz)
                                 ? (implied_npu_hz - configured_hz)
@@ -407,13 +417,14 @@ static void report_throughput(uint64_t npu_cycles, uint64_t host_cycles,
             }
             else
             {
-                uint64_t npu_mops_x1000 =
-                    ((uint64_t)total_ops * configured_hz * 1000ULL) /
+                uint64_t npu_mdescriptors_x1000 =
+                    ((uint64_t)total_descriptors * configured_hz * 1000ULL) /
                     (npu_cycles * 1000000ULL);
 
-                printf("U85 throughput: %llu.%03llu Mops/s at %lu MHz NPU clock\n",
-                       (unsigned long long)(npu_mops_x1000 / 1000ULL),
-                       (unsigned long long)(npu_mops_x1000 % 1000ULL),
+                printf("U85 DMA throughput: %llu.%03llu Mdescriptors/s at "
+                       "%lu MHz NPU clock\n",
+                       (unsigned long long)(npu_mdescriptors_x1000 / 1000ULL),
+                       (unsigned long long)(npu_mdescriptors_x1000 % 1000ULL),
                        (unsigned long)(configured_hz / 1000000ULL));
             }
         }
@@ -425,12 +436,13 @@ static void report_throughput(uint64_t npu_cycles, uint64_t host_cycles,
 /* ------------------------------------------------------------------------- */
 int main(void)
 {
-    const uint32_t total_ops = U85_DMA_OPS * U85_RUNS;
+    const uint32_t total_descriptors = U85_DMA_OPS * U85_RUNS;
     uint32_t id;
     uint32_t runs_ok = 0U;
     uint32_t runs_failed = 0U;
     uint64_t npu_cycles = 0ULL;
     uint64_t host_cycles = 0ULL;
+    uint64_t ratio_host_cycles = 0ULL;
     uint32_t host_cycles_ok;
     uint32_t i;
 
@@ -489,14 +501,17 @@ int main(void)
         uint64_t before;
         uint64_t after;
         uint32_t host_before = DWT->CYCCNT;
+        uint32_t ratio_host_before;
         int result;
 
         u85_clean_shared();
         __DSB();
 
+        ratio_host_before = DWT->CYCCNT;
         before = u85_pmu_cycles();
         result = u85_run();
         after = u85_pmu_cycles();
+        ratio_host_cycles += (uint32_t)(DWT->CYCCNT - ratio_host_before);
 
         host_cycles += (uint32_t)(DWT->CYCCNT - host_before);
 
@@ -530,7 +545,8 @@ int main(void)
     if (!host_cycles_ok)
         host_cycles = 0ULL;
 
-    report_throughput(npu_cycles, host_cycles, total_ops);
+    report_throughput(npu_cycles, host_cycles, ratio_host_cycles,
+                      total_descriptors, runs_failed);
 
     UartEndSimulation();
     return 0;

@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #define MHU_DOORBELL_MASK  (1UL)
+#define MHU_TEST_DONE_MASK (1UL << 1)
 
 static void send_r5_message(void)
 {
@@ -14,15 +15,22 @@ static void send_r5_message(void)
 
 static int receive_r5_message(void)
 {
-    if ((MHUR_MBX->DBCH_INT_ST[0] & MHU_DOORBELL_MASK) == 0U)
+    uint32_t status = MHUR_MBX->DBCH_INT_ST[0];
+    uint32_t mask;
+
+    if ((status & MHU_TEST_DONE_MASK) != 0U)
+        mask = MHU_TEST_DONE_MASK;
+    else if ((status & MHU_DOORBELL_MASK) != 0U)
+        mask = MHU_DOORBELL_MASK;
+    else
         return 0;
 
-    MHUR_MBX->MDBCW[0].CLR = MHU_DOORBELL_MASK;
-    while ((MHUR_MBX->DBCH_INT_ST[0] & MHU_DOORBELL_MASK) != 0U)
+    MHUR_MBX->MDBCW[0].CLR = mask;
+    while ((MHUR_MBX->DBCH_INT_ST[0] & mask) != 0U)
     {
     }
 
-    return 1;
+    return (mask == MHU_TEST_DONE_MASK) ? 2 : 1;
 }
 
 int main(void)
@@ -34,7 +42,15 @@ int main(void)
 
     for (;;)
     {
-        if (receive_r5_message())
+        int message = receive_r5_message();
+
+        if (message == 2)
+        {
+            printf("M85 reset/control test complete\n");
+            UartEndSimulation();
+            return 0;
+        }
+        if (message == 1)
             send_r5_message();
     }
 }

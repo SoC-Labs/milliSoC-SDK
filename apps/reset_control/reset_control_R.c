@@ -7,7 +7,8 @@
 #include <stdint.h>
 
 #define MHU_DOORBELL_MASK  (1UL)
-#define MHU_POLL_LIMIT     (10000UL)
+#define MHU_TEST_DONE_MASK (1UL << 1)
+#define MHU_POLL_LIMIT     (50000000UL)
 #define WATCHDOG_LOAD      (0x00001000UL)
 #define WATCHDOG_LOCK_KEY  (0x1ACCE551UL)
 #define WATCHDOG_LOAD_REG  (0x00U)
@@ -28,6 +29,12 @@ static inline void cpu_nop(void)
 static void send_m85_message(void)
 {
     MHUS_PBX->PDBCW[0].SET = MHU_DOORBELL_MASK;
+}
+
+static void send_m85_test_done(void)
+{
+    MHUS_PBX->PDBCW[0].SET = MHU_TEST_DONE_MASK;
+    data_sync_barrier();
 }
 
 static int m85_message_pending(void)
@@ -166,10 +173,9 @@ int main(void)
             fail("M85 did not start after watchdog reset");
         printf("Watchdog system reset PASS\n");
         printf("RESET CONTROL TEST PASS\n");
+        send_m85_test_done();
         UartEndSimulation();
-        for (;;)
-        {
-        }
+        return 0;
     }
 
     fail("unexpected SYS_CTRL reset cause");

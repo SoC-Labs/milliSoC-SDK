@@ -62,6 +62,22 @@
 #define MODEL_ARENA_SIZE        0x1000UL
 #endif
 
+#ifndef MODEL_BENCHMARK_REPEATS
+#define MODEL_BENCHMARK_REPEATS 100U
+#endif
+#ifndef MODEL_MACS_PER_INFERENCE
+#define MODEL_MACS_PER_INFERENCE 280U
+#endif
+#ifndef MODEL_MAC_UNITS
+#define MODEL_MAC_UNITS         256U
+#endif
+#ifndef MODEL_NPU_CLOCK_HZ
+#define MODEL_NPU_CLOCK_HZ      8000000UL
+#endif
+#ifndef MODEL_HOST_CLOCK_HZ
+#define MODEL_HOST_CLOCK_HZ     8000000UL
+#endif
+
 #define U85_POLL_TIMEOUT        1000000UL
 
 /* ------------------------------------------------------------------------- */
@@ -299,6 +315,101 @@ static int u85_run(uint64_t qbase, uint32_t qsize)
     return 0;
 }
 
+static void u85_pmu_init(void)
+{
+    U85_PMU->PMCR = U85_PMU_PMCR_CNT_EN_Msk;
+    U85_PMU->PMCNTENSET = U85_PMU_PMCNTENSET_CYCLE_CNT_Msk;
+    U85_PMU->PMCR = U85_PMU_PMCR_CNT_EN_Msk | U85_PMU_PMCR_CYCLE_CNT_RST_Msk;
+}
+
+static uint64_t u85_pmu_cycles(void)
+{
+    volatile uint32_t *word = (volatile uint32_t *)&U85_PMU->PMCCNTR;
+
+    return ((uint64_t)word[1] << 32) | (uint64_t)word[0];
+}
+
+static int host_cycles_init(void)
+{
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    DWT->CYCCNT = 0U;
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+
+    return (DWT->CTRL & DWT_CTRL_CYCCNTENA_Msk) != 0U;
+}
+
+static void report_compute(uint64_t npu_cycles, uint64_t host_cycles,
+                           uint32_t inference_count, uint32_t failed_runs)
+{
+    uint64_t total_macs =
+        (uint64_t)inference_count * (uint64_t)MODEL_MACS_PER_INFERENCE;
+    uint64_t cycles_per_mac_x1000;
+    uint64_t mmacs_per_second_x1000;
+    uint64_t gops_x1000000;
+    uint64_t utilization_x1000;
+
+    if (failed_runs != 0U)
+    {
+        printf("U85 compute throughput: not reported (%lu failed runs)\n",
+               (unsigned long)failed_runs);
+        return;
+    }
+
+    if (npu_cycles == 0ULL || total_macs == 0ULL)
+    {
+        printf("U85 compute throughput: not reported (no measured cycles or MACs)\n");
+        return;
+    }
+
+    cycles_per_mac_x1000 = (npu_cycles * 1000ULL) / total_macs;
+    mmacs_per_second_x1000 =
+        (total_macs * (uint64_t)MODEL_NPU_CLOCK_HZ * 1000ULL) /
+        (npu_cycles * 1000000ULL);
+    gops_x1000000 = mmacs_per_second_x1000 * 2ULL;
+    utilization_x1000 =
+        (total_macs * 100000ULL) /
+        (npu_cycles * (uint64_t)MODEL_MAC_UNITS);
+
+    printf("Model compute: %lu MAC/inference, %lu inferences, "
+           "%llu MACs total\n",
+           (unsigned long)MODEL_MACS_PER_INFERENCE,
+           (unsigned long)inference_count,
+           (unsigned long long)total_macs);
+    printf("U85 compute PMU: %llu cycles, %llu.%03llu cycles/MAC\n",
+           (unsigned long long)npu_cycles,
+           (unsigned long long)(cycles_per_mac_x1000 / 1000ULL),
+           (unsigned long long)(cycles_per_mac_x1000 % 1000ULL));
+    printf("U85 compute throughput: %llu.%03llu MMAC/s, "
+           "%llu.%06llu GOPS at %lu MHz NPU clock\n",
+           (unsigned long long)(mmacs_per_second_x1000 / 1000ULL),
+           (unsigned long long)(mmacs_per_second_x1000 % 1000ULL),
+           (unsigned long long)(gops_x1000000 / 1000000ULL),
+           (unsigned long long)(gops_x1000000 % 1000000ULL),
+           (unsigned long)(MODEL_NPU_CLOCK_HZ / 1000000UL));
+    printf("U85 effective MAC-array utilization: %llu.%03llu%% "
+           "(assuming %lu MAC units)\n",
+           (unsigned long long)(utilization_x1000 / 1000ULL),
+           (unsigned long long)(utilization_x1000 % 1000ULL),
+           (unsigned long)MODEL_MAC_UNITS);
+
+    if (host_cycles != 0ULL)
+    {
+        uint64_t wall_us_x1000 =
+            (host_cycles * 1000000000ULL) / (uint64_t)MODEL_HOST_CLOCK_HZ;
+        uint64_t wall_mmacs_x1000 =
+            (total_macs * (uint64_t)MODEL_HOST_CLOCK_HZ * 1000ULL) /
+            (host_cycles * 1000000ULL);
+
+        printf("M85 benchmark wall time: %llu.%03llu us at %lu MHz, "
+               "%llu.%03llu MMAC/s\n",
+               (unsigned long long)(wall_us_x1000 / 1000ULL),
+               (unsigned long long)(wall_us_x1000 % 1000ULL),
+               (unsigned long)(MODEL_HOST_CLOCK_HZ / 1000000UL),
+               (unsigned long long)(wall_mmacs_x1000 / 1000ULL),
+               (unsigned long long)(wall_mmacs_x1000 % 1000ULL));
+    }
+}
+
 /* ------------------------------------------------------------------------- */
 /* main                                                                      */
 /* ------------------------------------------------------------------------- */
@@ -326,6 +437,10 @@ int main(void)
     uint32_t i;
     uint32_t pass = 0U;
     uint32_t fail = 0U;
+    uint32_t benchmark_fail = 0U;
+    uint32_t host_cycles_ok;
+    uint64_t npu_cycles = 0ULL;
+    uint64_t host_cycles = 0ULL;
 
     UartStdOutInit();
 
@@ -527,7 +642,74 @@ int main(void)
     }
     else
     {
-        printf("Model run PASS\n");
+        printf("Model inference verification PASS\n");
+    }
+
+    if (fail == 0U)
+    {
+        uint32_t repeat;
+        uint32_t host_before;
+        uint32_t measured_inferences =
+            MODEL_TEST_COUNT * MODEL_BENCHMARK_REPEATS;
+
+        host_cycles_ok = (uint32_t)host_cycles_init();
+        u85_pmu_init();
+        host_before = DWT->CYCCNT;
+
+        for (repeat = 0U; repeat < MODEL_BENCHMARK_REPEATS; ++repeat)
+        {
+            for (i = 0U; i < MODEL_TEST_COUNT; ++i)
+            {
+                uint64_t before;
+                uint64_t after;
+                int result;
+
+                input[0] = model_test_input[i];
+                __DSB();
+                cache_clean(arena, MODEL_ARENA_SIZE);
+
+                before = u85_pmu_cycles();
+                result = u85_run(qbase, hdr->cmd_size);
+                after = u85_pmu_cycles();
+                npu_cycles += after - before;
+
+                __DSB();
+                cache_invalidate(arena, MODEL_ARENA_SIZE);
+
+                if (result != 1 ||
+                    abs_diff_i8(output[0], model_test_expected[i]) >
+                        MODEL_TEST_TOLERANCE)
+                    ++benchmark_fail;
+            }
+        }
+
+        host_cycles = (uint32_t)(DWT->CYCCNT - host_before);
+        if (!host_cycles_ok)
+            host_cycles = 0ULL;
+
+        printf("U85 compute benchmark: %lu repeats x %lu vectors, "
+               "%lu/%lu %s\n",
+               (unsigned long)MODEL_BENCHMARK_REPEATS,
+               (unsigned long)MODEL_TEST_COUNT,
+               (unsigned long)(measured_inferences - benchmark_fail),
+               (unsigned long)measured_inferences,
+               (benchmark_fail == 0U) ? "PASS" : "FAIL");
+        report_compute(npu_cycles, host_cycles, measured_inferences,
+                       benchmark_fail);
+
+        if (benchmark_fail != 0U)
+        {
+            printf("U85 compute benchmark FAIL\n");
+            printf("Model run FAIL\n");
+        }
+        else
+        {
+            printf("Model run PASS\n");
+        }
+    }
+    else
+    {
+        printf("U85 compute benchmark: skipped because inference verification failed\n");
     }
 
     UartEndSimulation();

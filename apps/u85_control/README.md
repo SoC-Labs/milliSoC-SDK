@@ -7,11 +7,18 @@ The M85 is the host for the Ethos-U85 NPU. This app:
    `BASEP_ARRAY[0]`,
 3. builds a command stream of memory-to-memory DMA operations in shared SRAM,
 4. launches the stream repeatedly and verifies the copied data,
-5. measures operations/second from the NPU PMU cycle counter, with the M85
-   DWT cycle counter as a cross-check.
+5. measures DMA descriptors/second from the NPU PMU cycle counter, with the
+   M85 DWT cycle counter as a wall-clock cross-check.
 
 No Vela toolchain or Ethos-U driver is required. The command stream is built by
 hand from the encodings in the Ethos-U85 TRM (102685_0000_05_en).
+
+This is a DMA-copy microbenchmark, not a MAC/compute benchmark. It does not
+issue multiply-accumulate operations, so the configured 256 MACs are not
+exercised and these results must not be compared with MAC/s or TOPS figures.
+For a compute workload with verified model outputs and MAC/s/GOPS reporting,
+run [`u85_model`](../u85_model/README.md) with
+`make run_hw TESTNAME=u85_model APPEND_MODEL=1`.
 
 ## Build
 
@@ -69,15 +76,15 @@ add it to `ARM_CC_OPTIONS` (or `USER_DEFINE`) in the Makefile, for example
 | `U85_DMA_OPS`       | `32`           | DMA operations per command stream            |
 | `U85_COPY_BYTES`    | `64`           | Bytes per DMA operation (1D transfer)        |
 | `U85_RUNS`          | `100`          | Number of command-stream launches measured   |
-| `U85_NPU_CLOCK_HZ`  | `10000000`     | NPU clock used to convert cycles to ops/s    |
-| `U85_HOST_CLOCK_HZ` | `10000000`     | M85 clock used for the DWT cross-check       |
+| `U85_NPU_CLOCK_HZ`  | `8000000`      | NPU clock used to convert cycles to descriptors/s |
+| `U85_HOST_CLOCK_HZ` | `8000000`      | M85 clock used for the DWT cross-check       |
 
 Both defaults match the current FPGA bitstream, where the M85 and the U85 share
-a ~10 MHz clock. Note that `SystemFrequency` in `system_exectb_mcu.c` is 50 MHz
+an ~8 MHz clock. Note that `SystemFrequency` in `system_exectb_mcu.c` is 50 MHz
 and is *not* the real rate on this FPGA, which is why it is not used here.
 
 The two clock values are assumptions. The NPU number is the meaningful one: the
-`kops/s/GHz` figure is clock-independent.
+`kdescriptors/s/GHz` figure is clock-independent.
 
 ## Expected output
 
@@ -90,31 +97,34 @@ Command stream: 664 bytes, 32 DMA ops x 64 bytes per run
 U85 warm-up run PASS
 U85 DMA runs: 100/100 PASS
 DMA data verify PASS
-U85 PMU cycles: 180416 total, 56.380 cycles/op
-U85 efficiency: 17736.786 kops/s/GHz
-M85 wall clock: 184416 cycles, 18441.600 us at 10 MHz
-U85 throughput: 0.173 Mops/s, 11.105 MB/s (wall clock)
-U85 throughput: 0.177 Mops/s at 10 MHz NPU clock
+U85 PMU cycles: 180526 total, 56.414 cycles/descriptor
+U85 DMA descriptor efficiency: 17725.978 kdescriptors/s/GHz
+M85 wall clock: 184926 cycles, 23115.750 us at 8 MHz
+U85 DMA throughput: 0.138 Mdescriptors/s, 8.859 MB/s payload (wall clock)
+U85 DMA throughput: 0.141 Mdescriptors/s at 8 MHz NPU clock
 ```
 
 How to read this:
 
-* `cycles/op` and `kops/s/GHz` come from the U85 PMU cycle counter and are
-  independent of any clock assumption. These are the trustworthy efficiency
-  figures: this FPGA build does one 64-byte DMA copy in about 56 NPU cycles.
-* The wall-clock `Mops/s` / `MB/s` come from the M85 DWT cycle counter, which is
-  the only absolute time reference. It is only correct if `U85_HOST_CLOCK_HZ`
-  matches the real M85 clock. This rate includes host-side launch, polling and
-  cache maintenance, so it is slightly lower than the NPU-busy-time rate.
-* The PMU and DWT counters run over the same interval, so their ratio is the
-  NPU:M85 clock ratio. The app uses it to sanity-check `U85_NPU_CLOCK_HZ` and
+* `cycles/descriptor` and `kdescriptors/s/GHz` come from the U85 PMU cycle
+  counter and are independent of any clock assumption. This FPGA build takes
+  about 56 NPU cycles per 64-byte DMA descriptor.
+* The wall-clock descriptor rate and payload `MB/s` come from the M85 DWT
+  cycle counter, which is the only absolute time reference. It is only correct
+  if `U85_HOST_CLOCK_HZ` matches the real M85 clock. The rate includes
+  host-side launch, polling and cache maintenance, so it is slightly lower than
+  the NPU-busy-time rate. `MB/s` counts each copied payload byte once, not the
+  combined read-plus-write traffic on the memory bus.
+* The PMU and a paired DWT interval are used to estimate the NPU:M85 clock
+  ratio. The app uses it to sanity-check `U85_NPU_CLOCK_HZ` and
   refuses to print a configured-clock rate when the two disagree by more than
-  20%. In the sample above the ratio implies about 9.78 MHz, within 2% of the
-  configured 10 MHz, so the `at 10 MHz NPU clock` line is printed. The 2% gap is
-  the time the NPU is idle while the M85 prepares and re-arms the next run.
+  20%. In the sample above the ratio is consistent with the configured 8 MHz,
+  so the `at 8 MHz NPU clock` line is printed.
   When the check fails, the app prints the implied NPU clock and a `WARNING`
   instead of that line, which means `U85_NPU_CLOCK_HZ` (or
   `U85_HOST_CLOCK_HZ`) is wrong.
+* Throughput is reported only when every measured run passes; otherwise the
+  operation count and elapsed time would not describe the same completed work.
 
 On failure the app prints the final `STATUS`, `QREAD` and `QSIZE`, which is
 usually enough to tell a bus fault from a command-parse error.
@@ -150,10 +160,11 @@ network:
    defaults are `QCONFIG = 2` and `REGIONCFG = 3`, i.e. the EXT port).
 4. Keep the `u85_run()` / PMU measurement loop unchanged.
 
-The DMA workload here is one operation per `NPU_OP_DMA_START`, so the reported
-"operations/second" is DMA descriptors per second. For a Vela stream the same
-code reports command-stream launches or, if you divide by the number of
-`NPU_OP_*` compute operations in the stream, MAC operations per second.
+The DMA workload here is one descriptor per `NPU_OP_DMA_START`, so the reported
+rate is DMA descriptors per second. A compute benchmark requires a valid
+compute command stream (for example, one generated by Vela) and a count of the
+actual MAC work performed; this test does not infer MAC operations from the
+number of command-stream operations.
 
 ## Command stream details
 

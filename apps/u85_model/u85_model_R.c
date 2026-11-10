@@ -16,8 +16,6 @@ int main(void)
 
     printf("R5: MilliSoC Ethos-U85 model demo companion (idle)\n");
 
-    for (;;)
-    {
-        __asm volatile("WFI");
-    }
+    UartEndSimulation();
+    return 0;
 }
