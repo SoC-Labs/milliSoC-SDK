@@ -8,8 +8,7 @@
  */
 
 #include <stdint.h>
-#include "sys_memory_map.h"
-#include "irq_map.h"
+#include "millisoc_platform_r.h"
 #include "vic.h"
 
 /* irq_map.h spells the mailbox IRQ as "09", which is not a valid octal

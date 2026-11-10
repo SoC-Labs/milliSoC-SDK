@@ -1,10 +1,6 @@
-#include "CMSDK.h"
-#include "uart_stdout.h"
+#include "millisoc_platform_r.h"
 #include <stdio.h>
-#include "mhu.h"
-#include "sys_memory_map.h"
 
-#define SRAM_BASE 0x20000000 
 #define TEST_SIZE 0x1000
 #define TEST_OFFSET 0x1000
 

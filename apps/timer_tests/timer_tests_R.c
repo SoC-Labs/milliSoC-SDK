@@ -7,6 +7,7 @@
  */
 
 #include <stdint.h>
+#include "millisoc_platform_r.h"
 
 /* Time reference: Cortex-R5 PMU cycle counter (PMCCNTR). */
 static int core_cycles_init(void)

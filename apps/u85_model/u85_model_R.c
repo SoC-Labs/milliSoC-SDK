@@ -6,8 +6,7 @@
  * simulation marker while the M85 is still running inferences on the NPU.
  */
 
-#include "CMSDK.h"
-#include "uart_stdout.h"
+#include "millisoc_platform_r.h"
 #include <stdio.h>
 
 int main(void)

@@ -1,5 +1,4 @@
-#include "CMSDK.h"
-#include "uart_stdout.h"
+#include "millisoc_platform_r.h"
 #include <stdio.h>
 
 
@@ -10,4 +9,3 @@ int main(){
 
     UartEndSimulation();
 }
-

@@ -1,6 +1,4 @@
-#include "exectb_mcu.h"
-#include "CMSDK.h"
-#include "uart_stdout.h"
+#include "millisoc_platform_m.h"
 #include <stdio.h>
 
 #define MILLI_SOC_TPIU_BASE       (0xE00F1000UL)

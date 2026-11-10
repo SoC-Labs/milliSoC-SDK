@@ -35,8 +35,6 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include "CMSDK.h"
-#include "uart_stdout.h"
 #include "mhu.h"
 
 #ifndef MHUT_CORE_IS_M

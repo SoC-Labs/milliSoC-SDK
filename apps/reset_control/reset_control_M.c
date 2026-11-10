@@ -1,7 +1,5 @@
-#include "exectb_mcu.h"
-#include "CMSDK.h"
+#include "millisoc_platform_m.h"
 #include "mhu.h"
-#include "uart_stdout.h"
 #include <stdio.h>
 #include <stdint.h>
 

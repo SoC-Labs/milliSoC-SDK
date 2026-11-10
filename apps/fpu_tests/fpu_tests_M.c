@@ -4,9 +4,7 @@
  * Demonstrates single-precision C arithmetic using the M85 FPU.
  */
 
-#include "exectb_mcu.h"
-#include "CMSDK.h"
-#include "uart_stdout.h"
+#include "millisoc_platform_m.h"
 #include <stdio.h>
 #include <stdint.h>
 

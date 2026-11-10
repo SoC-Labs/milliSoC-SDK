@@ -190,7 +190,7 @@ else
   ARM_TARGET = -O3 -Otime
 endif
 
-ARM_CC_OPTIONS   = $(ARM_TARGET) -c -D_FPU -mthumb -I $(DEVICE_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/libs/common/CMSDK \
+ARM_CC_OPTIONS   = $(ARM_TARGET) -c -D_FPU -mthumb -I $(SOFTWARE_DIR)/libs/Device/Include -I $(DEVICE_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/libs/common/CMSDK \
 		   -I $(SOFTWARE_DIR)/libs/Drivers/Include  \
 		   -I $(SOFTWARE_DIR)/libs/common/retarget $(USER_DEFINE)
 
@@ -202,7 +202,7 @@ else
   R5_OPT = -O0
 endif
 
-ARM_CC_R_OPTIONS   = $(ARM_TARGET) -c -marm $(R5_OPT) -g -Wall -Wstrict-prototypes -I $(DEVICE_R_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/libs/common/CMSDK \
+ARM_CC_R_OPTIONS   = $(ARM_TARGET) -c -marm $(R5_OPT) -g -Wall -Wstrict-prototypes -I $(SOFTWARE_DIR)/libs/Device/Include -I $(DEVICE_R_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/libs/common/CMSDK \
 		   -I $(SOFTWARE_DIR)/libs/Drivers/Include  \
 		   -I $(SOFTWARE_DIR)/libs/common/retarget $(USER_R_DEFINE)
 
@@ -457,4 +457,3 @@ flash_model: $(MODEL_IMAGE_HEX)
 	          --log-dir $(MODEL_BUILD_DIR) \
 	          --cdb-root "$(CDB_ROOT)" --cdb-entry "$(CDB_ENTRY)" \
 	          --connection $(DSTREAM_CONN) $(HW_EXTRA)
-

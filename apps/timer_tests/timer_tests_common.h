@@ -20,8 +20,6 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include "CMSDK.h"
-#include "uart_stdout.h"
 
 /* Core hooks, provided by the including file. */
 static int      core_cycles_init(void);

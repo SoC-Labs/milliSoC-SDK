@@ -25,16 +25,8 @@ def wr(addr, value):
     ec.executeDSCommand("memory set AXI:0x%08X 32 0x%08X" % (addr, value))
 
 
-# Restart the boot ROM / bootloader so it reloads both images from flash.
-# Make sure CPUWAIT is deasserted first: a leftover hold from a previous run
-# makes the bootloader's DMA copy fail.
-wr(CPU_MX_WAIT, 0x0)
+# Hold the M85 before restarting the boot ROM. This prevents stale ITCM contents
+# from executing while the R5 reloads both core images from flash.
+wr(CPU_MX_WAIT, 0x1)
 wr(RESET_COMMAND, RESET_SYSTEM)
 time.sleep(3.0)
-
-# Older FPGA boot ROMs release the M85 before the image copy finishes. Keep
-# the second reset until the ROM includes the post-copy M85 hold/reset sequence.
-wr(CPU_MX_WAIT, 0x1)
-wr(RESET_COMMAND, RESET_M85)
-time.sleep(0.1)
-wr(CPU_MX_WAIT, 0x0)

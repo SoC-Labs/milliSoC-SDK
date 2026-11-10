@@ -1,6 +1,5 @@
 #include <stdint.h>
 #include "sys_memory_map.h"
-#include "exectb_mcu.h"
 
 #define CG092_BASEADDR (QSPI_CFG_BASE + 0x1000UL)
 

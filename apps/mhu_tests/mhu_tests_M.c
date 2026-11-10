@@ -7,7 +7,7 @@
  */
 
 #include <stdint.h>
-#include "exectb_mcu.h"
+#include "millisoc_platform_m.h"
 
 /* Time reference: Cortex-M85 DWT cycle counter. */
 static int core_cycles_init(void)

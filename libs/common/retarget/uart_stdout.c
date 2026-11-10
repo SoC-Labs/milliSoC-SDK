@@ -62,4 +62,3 @@ void UartEndSimulation(void)
   UartPutc((char) 0x4); // End of simulation
  __asm volatile("WFI");
 }
-

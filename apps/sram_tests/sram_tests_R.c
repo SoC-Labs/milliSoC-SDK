@@ -7,8 +7,7 @@
  * a marker and idles; the M85 end-of-simulation byte ends the capture.
  */
 
-#include "CMSDK.h"
-#include "uart_stdout.h"
+#include "millisoc_platform_r.h"
 #include <stdio.h>
 
 int main(void)

@@ -1,14 +1,11 @@
-//#include "exectb_mcu.h"
-#include "CMSDK.h"
-#include "uart_stdout.h"
+#include "millisoc_platform_r.h"
 #include <stdio.h>
 #include "ada_dma_command_lib.h"
 #include "SL_QSPI.h"
 #include <inttypes.h>
-#include "irq_map.h"
+#include <stdint.h>
 #include "sysctrl.h"
 #include "vic.h"
-#include <stdint.h>
 
 int FlashInit(void);
 int DmaMemcpy(uint32_t addr, uint32_t size, uint32_t dest);

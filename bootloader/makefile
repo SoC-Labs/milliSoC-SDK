@@ -99,7 +99,7 @@ else
   ARM_TARGET = -O3 -Ospace --c99
 endif
 
-ARM_CC_OPTIONS   = $(ARM_TARGET) -c -marm -mfpu=none -g -O0 -Wall -I $(DEVICE_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/libs/common/CMSDK \
+ARM_CC_OPTIONS   = $(ARM_TARGET) -c -marm -mfpu=none -g -O0 -Wall -I $(SOFTWARE_DIR)/libs/Device/Include -I $(DEVICE_DIR)/Include -I $(CORE_DIR) -I $(SOFTWARE_DIR)/libs/common/CMSDK \
 		   -I $(SOFTWARE_DIR)/libs/Drivers/Include  \
 		   -I $(SOFTWARE_DIR)/libs/common/retarget $(USER_DEFINE)
 
@@ -255,4 +255,3 @@ clean :
 	@rm -rf *.sct
 	@rm -rf *.__i
 	@rm -rf *._ia
-

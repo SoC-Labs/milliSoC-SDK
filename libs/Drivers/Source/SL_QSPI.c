@@ -1,5 +1,6 @@
 
 #include "SL_QSPI.h"
+#include "cmsis_compiler.h"
 #include "irq_map.h"
 #include "vic.h"
 

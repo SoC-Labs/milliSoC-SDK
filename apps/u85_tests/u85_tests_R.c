@@ -1,8 +1,5 @@
-#include "CMSDK.h"
-#include "uart_stdout.h"
+#include "millisoc_platform_r.h"
 #include <stdio.h>
-#include "mhu.h"
-#include "sys_memory_map.h"
 
 int main(){
     UartStdOutInit();

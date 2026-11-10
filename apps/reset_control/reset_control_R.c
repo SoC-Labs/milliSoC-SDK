@@ -1,8 +1,6 @@
-#include "CMSDK.h"
+#include "millisoc_platform_r.h"
 #include "mhu.h"
 #include "sysctrl.h"
-#include "sys_memory_map.h"
-#include "uart_stdout.h"
 #include <stdio.h>
 #include <stdint.h>
 

@@ -15,9 +15,7 @@
  * run/measure code unchanged.
  */
 
-#include "exectb_mcu.h"
-#include "CMSDK.h"
-#include "uart_stdout.h"
+#include "millisoc_platform_m.h"
 #include <stdio.h>
 #include "ethos_u85.h"
 
