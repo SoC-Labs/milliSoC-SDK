@@ -34,6 +34,7 @@
 # ---------------------------------------------------------------------------------------
 
 import argparse
+import csv
 import json
 import os
 import struct
@@ -48,6 +49,11 @@ HEADER_VERSION = 1
 CMD_ALIGN = 64
 WEIGHT_ALIGN = 64
 ARENA_ALIGN = 64
+# The flash programmer writes the QSPI FIFO four 32-bit words at a time, so the
+# byte-per-line hex written for it ends on a 16-byte boundary.  The .bin keeps
+# its exact length; the header's image_size is what the runtime copies.
+HEX_ALIGN = 16
+ERASED_BYTE = 0xFF
 
 # Driver payload tags (ethosu/vela/driver_actions.py: DACommands).
 DA_CONFIG = 0x01
@@ -139,6 +145,20 @@ def tensor_size(z, shape_key, elem_key):
     return count * npz_int(z, elem_key)
 
 
+def read_summary_macs(path):
+    """Return Vela's nn_macs from a --summary CSV, or None if it is missing.
+
+    Vela writes one row per experiment; the milliSoC flow has a single one.
+    """
+    with open(path, newline="") as f:
+        rows = list(csv.DictReader(f))
+    if not rows:
+        raise ValueError("%s: no rows" % path)
+    if "nn_macs" not in rows[0]:
+        raise ValueError("%s: no nn_macs column" % path)
+    return int(round(float(rows[0]["nn_macs"])))
+
+
 def build_header(cmd, weights, meta):
     cmd_offset = HEADER_SIZE
     assert cmd_offset % 16 == 0, "command stream must stay 16-byte aligned"
@@ -178,7 +198,7 @@ def build_header(cmd, weights, meta):
         meta["output_size"],
         arena_size,
         crc,
-        0,
+        meta["macs"],
         0,
         0,
     ]
@@ -187,10 +207,15 @@ def build_header(cmd, weights, meta):
     return header, image_size, weight_offset, arena_size, crc
 
 
-def write_plain_hex(path, data):
+def write_plain_hex(path, data, align=HEX_ALIGN, fill=ERASED_BYTE):
+    """Write one byte per line, padding to `align` bytes with erased-flash 0xFF."""
+    tail_pad = (-len(data)) % align
     with open(path, "w", newline="\n") as f:
         for byte in data:
             f.write("%02X\n" % byte)
+        for _ in range(tail_pad):
+            f.write("%02X\n" % fill)
+    return tail_pad
 
 
 def write_c_header(path, name, meta, header, image_size, weight_offset,
@@ -221,6 +246,7 @@ def write_c_header(path, name, meta, header, image_size, weight_offset,
         f.write("#define MODEL_IMAGE_OUTPUT_OFFSET %dUL\n" % meta["output_offset"])
         f.write("#define MODEL_IMAGE_OUTPUT_SIZE  %dUL\n" % meta["output_size"])
         f.write("#define MODEL_IMAGE_ARENA_SIZE   %dUL\n" % arena_size)
+        f.write("#define MODEL_IMAGE_MACS         %dUL\n" % meta["macs"])
         f.write("#define MODEL_IMAGE_CRC32        0x%08XUL\n\n" % crc)
         f.write("typedef struct {\n")
         names = [
@@ -230,7 +256,7 @@ def write_c_header(path, name, meta, header, image_size, weight_offset,
             "scratch_fast_region", "scratch_fast_size",
             "input_region", "input_offset", "input_size",
             "output_region", "output_offset", "output_size",
-            "arena_size", "crc32", "reserved0", "reserved1", "reserved2",
+            "arena_size", "crc32", "macs", "reserved1", "reserved2",
         ]
         for field in names:
             f.write("    uint32_t %s;\n" % field)
@@ -249,6 +275,11 @@ def main(argv):
                         help="base name, e.g. hello_world_int8")
     parser.add_argument("--base", type=lambda v: int(v, 0), default=0x008000,
                         help="flash byte offset of the image (default 0x8000)")
+    parser.add_argument("--summary", default=None,
+                        help="Vela summary CSV; its nn_macs is stored in the "
+                             "image header for the throughput report")
+    parser.add_argument("--macs", type=lambda v: int(v, 0), default=None,
+                        help="MAC count per inference, overriding --summary")
     args = parser.parse_args(argv)
 
     with np.load(args.input, allow_pickle=True) as z:
@@ -277,6 +308,17 @@ def main(argv):
             "output_size": tensor_size(z, "output_shape", "output_elem_size"),
         }
 
+    macs = 0
+    if args.macs is not None:
+        macs = args.macs
+    elif args.summary:
+        try:
+            macs = read_summary_macs(args.summary)
+        except (OSError, ValueError) as exc:
+            print("WARNING: cannot read nn_macs from %s: %s" % (args.summary, exc))
+            macs = 0
+    meta["macs"] = macs
+
     if not cmd:
         sys.exit("ERROR: %s: empty command stream" % args.input)
     if not weights:
@@ -298,7 +340,7 @@ def main(argv):
 
     with open(stem + ".bin", "wb") as f:
         f.write(image)
-    write_plain_hex(stem + ".hex", image)
+    hex_pad = write_plain_hex(stem + ".hex", image)
     write_c_header(stem + ".h", args.name, meta, header, image_size,
                    weight_offset, arena_size, crc, args.base)
 
@@ -326,6 +368,7 @@ def main(argv):
                    "offset": meta["output_offset"],
                    "size": meta["output_size"]},
         "arena_size": arena_size,
+        "macs": meta["macs"],
         "crc32": "0x%08X" % crc,
     }
     with open(stem + ".json", "w", newline="\n") as f:
@@ -341,7 +384,11 @@ def main(argv):
           (weight_offset, len(weights), meta["weight_region"]))
     print("  arena     : %d bytes, region %d" %
           (arena_size, meta["input_region"]))
+    print("  MACs      : %d per inference" % meta["macs"])
     print("  CRC32     : 0x%08X" % crc)
+    if hex_pad:
+        print("  hex pad   : %d byte(s) of 0x%02X to align the .hex to %d bytes"
+              % (hex_pad, ERASED_BYTE, HEX_ALIGN))
     return 0
 
 

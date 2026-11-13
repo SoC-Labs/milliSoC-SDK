@@ -138,7 +138,11 @@ def program(address, data):
     n = len(data)
     if n < 1 or n > MAX_XFER:
         raise Exception("Invalid program length %d" % n)
-    if (address % PAGE) + n > PAGE:
+    # Always clock a full 16-byte burst: the controller writes the FIFO four
+    # 32-bit words at a time and does not complete a partial word group.  A
+    # short final chunk is padded with erased-flash 0xFF, so programming it is
+    # a no-op for the bytes past the end of the image.
+    if (address % PAGE) + MAX_XFER > PAGE:
         raise Exception("Program transaction crosses 256-byte page boundary")
     wren()
     wr(ADDR, address)
@@ -149,7 +153,7 @@ def program(address, data):
         words.append(b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24))
     wr4(WDATA, words[0], words[1], words[2], words[3])
     # Page Program 02h, WRITE + ADDR_EN, count-1 in [19:16].
-    command((((n - 1) & 0xF) << 16) | 0x00000D02)
+    command((((MAX_XFER - 1) & 0xF) << 16) | 0x00000D02)
     wait_ready(5.0, "page program 0x%06X" % address)
 
 def parse_file(filename):
@@ -204,6 +208,10 @@ def main():
         raise Exception("flash_base must be 4-KiB aligned")
 
     data = parse_file(filename)
+    if len(data) % 16:
+        log("WARNING: image is %d bytes, not a multiple of 16; the final burst "
+            "is padded with 0xFF (regenerate with tools/concat_hex.py to align "
+            "it to the flash FIFO)" % len(data))
     end = base + len(data)
     if end > FLASH_LIMIT:
         raise Exception("Image exceeds controller 4-MiB address window")

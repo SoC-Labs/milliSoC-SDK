@@ -28,6 +28,21 @@ import sys
 
 PREAMBLE_WORDS = 4          # m_offset, m_size, r_offset, r_size
 BYTES_PER_WORD  = 4
+# The flash programmer writes the QSPI FIFO four 32-bit words at a time, so the
+# image length is aligned to 16 bytes.  A tail that is not a whole number of
+# FIFO words makes the last page-program transaction partial, which the
+# controller does not complete.
+ALIGN_BYTES     = 4 * BYTES_PER_WORD
+ERASED_BYTE     = 0xFF
+
+
+def pad_to(data, align, fill=ERASED_BYTE):
+    """Right-pad a byte string with `fill` up to a multiple of `align` bytes."""
+    remainder = len(data) % align
+    if remainder == 0:
+        return data, 0
+    padding = align - remainder
+    return data + bytes([fill]) * padding, padding
 
 
 def parse_hex(path):
@@ -104,15 +119,15 @@ def concat_hex(args):
     m_data = parse_hex(args.m_hex)
     r_data = parse_hex(args.r_hex)
 
-    m_size_words = (len(m_data) + BYTES_PER_WORD - 1) // BYTES_PER_WORD
-    r_size_words = (len(r_data) + BYTES_PER_WORD - 1) // BYTES_PER_WORD
+    # Each core image must occupy a whole number of preamble words, otherwise
+    # the next offset (and the size the boot code copies) is not word aligned.
+    m_data, m_pad = pad_to(m_data, BYTES_PER_WORD)
+    r_data, r_pad = pad_to(r_data, BYTES_PER_WORD)
+    if m_pad or r_pad:
+        print(f"NOTE: padded M by {m_pad} byte(s), R by {r_pad} byte(s) to whole words")
 
-    if len(m_data) % BYTES_PER_WORD:
-        print(f"WARNING: {args.m_hex}: {len(m_data)} bytes is not a multiple of "
-              f"{BYTES_PER_WORD}, M size rounded up to {m_size_words} words")
-    if len(r_data) % BYTES_PER_WORD:
-        print(f"WARNING: {args.r_hex}: {len(r_data)} bytes is not a multiple of "
-              f"{BYTES_PER_WORD}, R size rounded up to {r_size_words} words")
+    m_size_words = len(m_data) // BYTES_PER_WORD
+    r_size_words = len(r_data) // BYTES_PER_WORD
 
     m_offset = PREAMBLE_WORDS * BYTES_PER_WORD
     r_offset = m_offset + len(m_data)
@@ -143,6 +158,13 @@ def concat_hex(args):
         image.extend(b"\xFF" * (offset - cursor))
         image.extend(data)
         cursor = offset + len(data)
+    unpadded_size = len(image)
+
+    # The flash programmer pushes the QSPI FIFO four 32-bit words at a time, so
+    # finish on a 16-byte boundary; the tail is erased-flash padding.
+    tail_pad = (-len(image)) % ALIGN_BYTES
+    if tail_pad:
+        image.extend(bytes([ERASED_BYTE]) * tail_pad)
 
     out_dir = os.path.dirname(args.output)
     if out_dir:
@@ -160,7 +182,12 @@ def concat_hex(args):
     for offset, data, path in blobs:
         print(f"  blob   : offset 0x{offset:08X}, "
               f"{len(data)} bytes, from {path}")
-    print(f"  total  : {len(image)} bytes")
+    if tail_pad:
+        print(f"  padding: {tail_pad} byte(s) of 0x{ERASED_BYTE:02X} at "
+              f"0x{unpadded_size:08X}..0x{len(image) - 1:08X} "
+              f"(align image to {ALIGN_BYTES} bytes)")
+    print(f"  total  : {len(image)} bytes ({len(image) // ALIGN_BYTES} x "
+          f"{ALIGN_BYTES}-byte FIFO bursts)")
 
 
 if __name__ == "__main__":
