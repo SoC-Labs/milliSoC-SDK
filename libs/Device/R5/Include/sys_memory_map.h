@@ -17,13 +17,14 @@
 
 
 
-#define FLASH_BASE          0x60000000UL
-#define FLASH_SIZE          0x400000UL
 #define ITCM_BASE           0x00000000UL
-
+#define ITCM_SIZE           0x4000UL
 #define DTCM_BASE           0x20000000UL
-
-#define SRAM_BASE           0x20000000UL 
+#define DTCM_SIZE           0x4000UL
+#define SRAM_BASE           0x20000000UL
+#define SRAM_SIZE           0x4000UL 
+#define SHARED_SRAM_BASE    0x30000000UL
+#define SHARED_SRAM_SIZE    0x8000UL
 
 #define PERIPHERAL_BASE     0x40000000UL
 #define TIMER0_BASE         PERIPHERAL_BASE
@@ -45,10 +46,12 @@
 #define QSPI_CFG_BASE       0x44010000UL
 #define VIC_BASE            0x44020000UL
 #define SYSCTRL_BASE        0x44030000UL
+#define U85_CFG_BASE        0x44032000UL
 
-#define ITCM_SIZE           0x10000UL
+#define FLASH_BASE          0x60000000UL
+#define FLASH_SIZE          0x400000UL
 
-#define PASS_CODE 0xBEEF1AC0
-#define FAIL_CODE 0xDEADBEEF
+#define DBG_BASE            0xE00F0000UL
 
+#define ROM_BASE            0xFFFF0000UL
 
