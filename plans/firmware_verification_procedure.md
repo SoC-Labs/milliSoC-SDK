@@ -24,7 +24,7 @@ protocol checking, CDC/formal analysis, or FPGA timing sign-off.
 | FW-IRQ-001 | Core interrupt behavior and priority | P0 | [fw_irq_001_core_interrupts.md](fw_irq_001_core_interrupts.md) |
 | FW-IRQ-002 | R5 VIC1 peripheral interrupt delivery | P0 | [fw_irq_002_vic1.md](fw_irq_002_vic1.md) |
 | FW-RESET-001 | Local, system, and watchdog reset behavior | P0 | [fw_reset_001_reset_behavior.md](fw_reset_001_reset_behavior.md) |
-| FW-MHU-001 | Bidirectional MHU and shared-memory handshake | P1 | [fw_mhu_001_interprocessor.md](fw_mhu_001_interprocessor.md) |
+| FW-MHU-001 | Bidirectional MHU with optional shared memory | P1 | [fw_mhu_001_interprocessor.md](fw_mhu_001_interprocessor.md) |
 | FW-DMA-001 | DMA transfer, completion, error, and abort | P1 | [fw_dma_001_transfers.md](fw_dma_001_transfers.md) |
 | FW-QSPI-001 | Read-only QSPI/XIP and warm-reset retention | P1 | [fw_qspi_001_flash_reads.md](fw_qspi_001_flash_reads.md) |
 | FW-PERIPH-001 | Peripheral function and interrupt checks | P1 | [fw_periph_001_peripherals.md](fw_periph_001_peripherals.md) |
@@ -55,6 +55,13 @@ the test image. Record:
 Do not infer pinout, clocks, fixtures, memory visibility, accelerator support, or
 reset behavior from simulation. If a required input is missing, mark the
 associated testcase **BLOCKED** and identify the missing information.
+
+For boot/reset tests, name the event precisely: board power-cycle/POR, system
+reset, local-core reset, and debugger-controlled reset are distinct. For
+example, `make run_hw` uses the debugger reset flow and does not establish
+physical cold-POR behavior. In the R5-first boot flow, verify preload and M85
+release ordering from the bootloader log/status; application UART banner order
+does not establish which core was released first.
 
 Preflight every run:
 

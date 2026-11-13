@@ -230,6 +230,7 @@ stay below `MODEL_FLASH_BASE` (`0x008000`) if you want to append a model to it.
 | App | What it exercises |
 | --- | ----------------- |
 | `hello` | Smallest smoke test: UART banners, M85 ETM/ITM trace setup and an R5 ETM APB probe from the M85. |
+| `cold_boot` | R5/M85 build IDs, initialized image payloads and local TCM checks, plus a bounded MHU startup/result handshake. Shared-SRAM peer checks are omitted pending bitstream/range qualification. Requires a manual board power-cycle; not part of the automated regression. |
 | `sram_tests` | Shared SRAM stress test on the M85: word, halfword and byte patterns, address-in-address, byte lanes and alignment boundaries (4 KiB window at the SRAM base). The R5 side stays idle because the M85 owns that SRAM during the run. |
 | `mhu_tests` | Both MHU-320AE instances: 4 doorbell and 4 fast channels each, polled transport and interrupt delivery, M85↔R5 in both directions. |
 | `timer_tests` | CMSDK `TIMER0`, `TIMER1` and `DUALTIMER` on each core, timed with the core cycle counters. |
@@ -244,6 +245,14 @@ stay below `MODEL_FLASH_BASE` (`0x008000`) if you want to append a model to it.
 `bus_access`, `u85_tests` and `sram_tests` are still the least-exercised apps;
 `reset_demo` is a legacy single-file demo from before the M85/R5 split and is
 not built by the current Makefile.
+
+For the `cold_boot` power-on test, first program the image with
+`make flash_hw TESTNAME=cold_boot`. Then start
+`make uart_hw TESTNAME=cold_boot` and power-cycle the board after UART capture
+has opened. `make run_hw` uses the debugger's reset flow and is not a substitute
+for this physical cold power-cycle. Use the bootloader UART output to verify
+R5-first preload and M85 release; the M85 app banner may precede the R5 app
+banner because the bootloader releases M85 before branching to the R5 app.
 
 ## Ethos-U85 model flow
 

@@ -19,17 +19,21 @@ from a cold power-on.
 3. R5 reports its startup identity, verifies its expected local execution
    location and writable test data, and records the bootloader's documented
    image/preload outcome if exposed.
-4. R5 releases M85 only after the normal bootloader preload sequence. M85
-   reports its independent build ID, validates its initialized data, and
-   acknowledges startup to R5 using a bounded test handshake.
-5. Each core writes a distinct signature to a reserved test-owned shared-SRAM
-   word, reads back its own signature, and confirms the other core's signature
-   only if that shared-memory route is verified for both masters.
+4. Confirm from the bootloader UART log that both images were preloaded and the
+   bootloader released M85. M85 then reports its independent build ID,
+   validates its initialized data, and acknowledges startup to the R5
+   application using a bounded test handshake.
+5. If the selected bitstream has a qualified shared-SRAM route and a reserved
+   test-owned region, each core writes a distinct signature, reads back its
+   own signature, and confirms the other core's signature. Otherwise, report
+   this optional check as not run; do not infer cross-core memory visibility.
 
 **Checks and pass criteria**
 
-* The R5 executes and reports first; M85 does not report application startup
-  before release.
+* The R5 bootloader log shows preload and M85 release before either
+  application-level result is accepted. Do not require the R5 application
+  banner to precede the M85 banner: the bootloader releases M85 before
+  branching to the R5 application.
 * Both core build IDs and payload checks match the programmed image.
 * M85 reaches its application without external intervention; both cores finish
   their bounded handshake and report PASS.
@@ -37,3 +41,8 @@ from a cold power-on.
 
 **Evidence:** Both UART logs, image hash, board/bitstream identity, reset method,
 and per-core results.
+
+**Current SDK app scope:** `apps/cold_boot/` checks each core's local image
+data and coordinates over MHU. It does not perform the optional shared-SRAM
+signature check; use the memory plans after the target memory route and safe
+test region are qualified.

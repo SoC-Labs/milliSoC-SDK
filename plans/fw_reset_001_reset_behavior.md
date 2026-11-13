@@ -46,8 +46,10 @@ capturing after the first boot and misclassify the reset sequence.
   unaffected processors and retained resources behave as specified.
 * Reset-cause reporting identifies the initiating source and is cleared or
   retained according to the documented register semantics.
-* The R5-first boot and M85 release work after system reset; local-reset
-  behavior matches explicit architecture requirements.
+* After system reset, bootloader logs/status show the documented preload and
+  M85 release sequence. Do not infer release order from the relative order of
+  R5/M85 application UART banners. Local-reset behavior matches explicit
+  architecture requirements.
 * No reset is issued during active DMA/QSPI/U85 traffic in this testcase.
 * Each stage has a bounded timeout and a board recovery procedure.
 
