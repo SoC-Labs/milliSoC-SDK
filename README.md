@@ -1,19 +1,15 @@
 # milliSoC software development kit
 
-Bare-metal SDK for **milliSoC'26**, a dual-core SoC built around an Arm
-Cortex-M85, an Arm Cortex-R5 and an Arm Ethos-U85 neural processing unit.
+Bare-metal SDK for the **milliSoC** (also known as `milliSoC'26`), a dual-core SoC with:
+- Cortex-M85 core (Thumb mode)
+- Cortex-R5 core (ARM mode)  
+- Arm Ethos-U85 neural processing unit
 
 The kit builds a **single flash image** that contains both core images (plus,
 optionally, a Vela-compiled NPU model). A small boot loader in the SoC boot ROM
-reads that image from QSPI flash, copies each core's code into its own
-tightly-coupled memory and starts both cores. Applications are ordinary C
-programs: one `main()` per core, `printf()` redirected to a UART, and a
-`PASS`/`FAIL` line per check. There is no host-side test framework, simulator
-or CI — a "test" is an app that runs on the board and prints its result over
-UART.
+reads that image from QSPI flash, copies each core's code into its own tightly-coupled memory and starts both cores. Applications are ordinary C programs: one `main()` per core, `printf()` redirected to a UART, and a `PASS`/`FAIL` line per check. There is no host-side test framework, simulator or CI — a "test" is an app that runs on the board and prints its result over UART.
 
-The toolchain is **Arm DS-6** (`armclang`, `armlink`, `fromelf`); the Makefile
-targets `arm-none-eabi` and does not currently build with GCC.
+The toolchain is **Arm DS-6** (`armclang`, `armlink`, `fromelf`). The Makefile targets `arm-none-eabi`; other toolchains (such as GCC) are not yet supported.
 
 ## Hardware at a glance
 
@@ -34,15 +30,10 @@ Notes:
   address: `0x3000_0000` from the M85 and `0x2000_0000` from the R5. At 64 bits
   wide and 16 address bits it maps as 8,192 double-words. It is the memory the
   Ethos-U85 can reach, so model images, feature maps and DMA buffers live there.
-* Because the R5 sees the shared SRAM at `0x2000_0000`, the R5 scatter file
-  places that core's `.data`, `.bss`, heap and stacks in shared SRAM, not in a
-  private TCM. The two cores' `0x2000_0000` are therefore *different* memories.
-* The M85 private DTCM occupies `0x2000_0000`–`0x2000_FFFF`; the linker script
-  puts the stack top at `0x2000_FFF0` and reserves 32 KiB for stack plus heap.
-* The R5 code must fit in the 16 KiB ATCM: its image is linked at `0x0` and the
+* The M85 DTCM occupies `0x2000_0000`–`0x2000_FFFF`; the linker script puts the stack top at `0x2000_FFF0` and reserves 32 KiB for stack plus heap.
+* The R5 code must fit in the 16 KiB ITCM: its image is linked at `0x0` and the
   boot loader fills it through the SoC-side alias at `0x8000_0000`. R5 sources
-  are compiled `-O0` by default, and the Makefile gives the larger R5 apps
-  (`timer_tests`, `mhu_tests`) `-O2` so they do not overflow the ATCM.
+  are compiled `-O0` by default, and the Makefile gives larger R5 apps (`timer_tests`, `mhu_tests`) `-O2` so they fit.
 * The flash part on the board is an 8 MiB **SST26VF064B** (Pmod SF3), of which
   the current QSPI XiP window exposes 4 MiB (`FLASH_SIZE` in
   `libs/Device/R5/Include/sys_memory_map.h`).
@@ -51,9 +42,7 @@ Notes:
 
 | Base address | Block |
 | ------------ | ----- |
-| `0x4000_0000` | CMSDK timer 0 |
-| `0x4000_1000` | CMSDK timer 1 |
-| `0x4000_2000` | CMSDK dual timer |
+| `0x4000_0000`–`0x4002_FFFF` | CMSDK timers 0, 1 and dual timer |
 | `0x4000_5000` | CMSDK UART 0 (used by `printf` on both cores) |
 | `0x4000_6000` | CMSDK UART 1 |
 | `0x4000_7000` | Watchdog |
@@ -68,7 +57,7 @@ Notes:
 | `0x4402_0000` | VIC (interrupt controller) |
 | `0x4403_0000` | SYSCTRL (core reset/release, boot control) |
 | `0x4403_2000` | Ethos-U85 control, queue and PMU registers |
-| `0x6000_0000` | QSPI XiP / AHB flash window |
+| `0x6000_0000`–`0xFFFF_FFFF` | QSPI XiP / AHB flash window (QSPI maps to `0x6000`, rest is reserved for future use) |
 
 The authoritative table is `libs/Device/R5/Include/sys_memory_map.h` together
 with the M85 view in `libs/Device/M85/exectb_mcu/Include/sys_memory_map.h`.
@@ -79,7 +68,7 @@ with the M85 view in `libs/Device/M85/exectb_mcu/Include/sys_memory_map.h`.
 apps/           test/demo applications, one directory per app
                   <app>/<app>_M.c   Cortex-M85 (Thumb)
                   <app>/<app>_R.c   Cortex-R5 (ARM mode)
-bootloader/     R5 boot loader; bootrom_gen.py turns its hex into bootrom.sv
+bootloader/     R5 boot loader; `bootrom_gen.py` converts its hex into bootrom.sv
 libs/
   CMSIS/        CMSIS core and device headers
   Device/M85/   M85 startup, system init and device headers
@@ -89,7 +78,7 @@ libs/
   common/       retarget (printf over UART) and CMSDK helpers
 models/         .tflite sources, Vela config, generated test vectors
 scatter/        armlink scatter files (M85, R5, boot ROM)
-tools/          concat_hex.py, model_to_image.py, hw_run.py, gen_test_vectors.py
+tools/          Image and tooling: concat_hex.py, model_to_image.py, hw_run.py, gen_test_vectors.py
 armdbg/         Arm Debugger scripts (flash programmer, boot/reset helpers)
 milliSoC/       Arm Debugger (CDB) project and board definition
 ```
@@ -124,17 +113,21 @@ Outputs land in `build/<app>/`:
 
 | File | Contents |
 | ---- | -------- |
-| `<app>.hex` | **The flash image**: 16-byte preamble + M85 image + R5 image (+ optional model). This is what is programmed. |
-| `<app>_M.hex`, `<app>_R.hex` | Per-core images, used to build the combined hex. |
+| `<app>.hex` | **The flash image**: 16-byte preamble (M and R offsets/sizes) + M85 image + R5 image (+ optional model). This is what is programmed via the flash programmer. |
+| `<app>_M.hex`, `<app>_R.hex` | Per-core images used to build the combined hex. Both are linked at `0x0`. |
 | `<app>.bin` | Not the flash image: both core rules write this name and the R5 image wins. Do not flash it. |
 | `<app>_M.lst`, `<app>_R.lst` | Disassembly/listing for debugging. |
 
 ### Run on the FPGA
 
+These targets require a DSTREAM connection to the SoC Labs board. Defaults:
+M85 `COM3`, R5 `COM7`, 250000 baud, DSTREAM at `192.168.137.59`. Override:
+`M85_COM=`, `R5_COM=`, `UART_BAUD=`, `DSTREAM_CONN=`.
+
 ```sh
-make flash_hw TESTNAME=mhu_tests   # program the image, leave the UARTs alone
-make run_hw   TESTNAME=mhu_tests   # program, then capture both UARTs
-make uart_hw  TESTNAME=mhu_tests   # capture only (reset the board yourself)
+make flash_hw TESTNAME=mhu_tests   # program the image, leave UARTs alone
+make run_hw TESTNAME=mhu_tests     # program, then capture both UARTs
+make uart_hw TESTNAME=mhu_tests    # capture only (reset board yourself)
 make connect_dstream               # interactive armdbg against the CDB project
 ```
 
@@ -142,11 +135,6 @@ make connect_dstream               # interactive armdbg against the CDB project
 when the M85 sends the end-of-simulation byte (`0x04`). It returns non-zero if
 that marker never arrives or any line contains `FAIL`. Logs are written to
 `build/<app>/uart_M85.log`, `uart_R5.log` and `flash.log`.
-
-Defaults on the current bench: M85 on `COM3`, R5 on `COM7`, 250000 baud,
-DSTREAM at `192.168.137.59`. Override with `M85_COM=`, `R5_COM=`,
-`UART_BAUD=`, `DSTREAM_CONN=`. The COM ports must not be held open by a
-terminal.
 
 To run every app in sequence and get a summary table:
 
@@ -279,38 +267,55 @@ memory layout and expected output.
 
 ## Tooling
 
+The following tools help with image building, model compilation and hardware testing:
+
 | Tool | Purpose |
 | ---- | ------- |
-| `tools/concat_hex.py` | Builds the flash image (preamble + M85 + R5 + optional model blob) and applies the 16-byte padding. |
-| `tools/model_to_image.py` | Packs Vela raw output into the `MVL1` runtime image and its `.hex`/`.json`/`.h` forms. |
-| `tools/gen_test_vectors.py` | Regenerates `models/vectors/<model>.h` by running inputs through the LiteRT integer kernels. |
-| `tools/hw_run.py` | Flashes over `armdbg`, captures both UARTs, scans for `FAIL` and the `0x04` end marker. |
+| `tools/concat_hex.py` | Builds the flash image (preamble + M85 + R5 + optional model blob) and applies 16-byte padding. |
+| `tools/model_to_image.py` | Packs Vela raw output into the self-describing `MVL1` runtime image. Also outputs `.hex`, `.json`, `.h` forms. |
+| `tools/gen_test_vectors.py` | Regenerates `models/vectors/<model>.h` by running inputs through LiteRT integer kernels. |
+| `tools/hw_run.py` | Flashes over DSTREAM via Arm Debugger, captures both UARTs, scans for `FAIL` and the `0x04` end marker. Uses `pyserial` when configured. |
 | `tools/run_fpga_regression.sh` | Runs every app (or a subset) sequentially and prints a PASS/FAIL summary. |
-| `bootloader/bootrom_gen.py` | Converts the boot loader hex into `bootrom.sv` / `bootrom.bintxt` for the RTL. |
-| `armdbg/scripts/flash_programmer.py` | QSPI flash programmer driven from the Arm Debugger command view. |
+| `bootloader/bootrom_gen.py` | Converts the boot loader hex into `bootrom.sv` / `bootrom.bintxt` for the RTL project. Requires `SOCLABS_PROJECT_DIR`. |
+| `armdbg/scripts/flash_programmer.py` | QSPI flash programmer driven from the Arm Debugger command view (`source flash_programmer.py "<image.hex>" <flash_base>`). |
 
-## Current FPGA limitations
+## Active issues and workarounds
 
-These are known silicon/bitstream issues, not SDK bugs:
+These are known silicon/bitstream limitations; they may be addressed in future
+FPGA builds:
 
-* **Shared SRAM byte stores.** Unaligned byte writes to shared SRAM commit only
-  at 8-byte boundaries, which corrupts byte-oriented data such as model feature
-  maps. Work is in progress; word accesses are reliable.
-* **M85 and the QSPI controller.** The M85 cannot access the QSPI registers at
-  `0x4401_0000`; flash operations run from the R5/boot loader.
-* **NPU and the flash window.** The Ethos-U85 currently has no AXI access to
-  the QSPI XiP window, so `u85_model` copies the model into SRAM before
-  launching (`MODEL_RUN_FROM_FLASH=0`). The direct-from-flash path exists
-  behind `MODEL_RUN_FROM_FLASH=1`.
-* **`reset_control`** needs boot-ROM behaviour that the current FPGA image does
-  not implement, so it is skipped by the default regression run.
+* **Shared SRAM byte-access:** Unaligned byte stores to shared SRAM (`0x30000000`)
+  commit only at 8-byte boundaries, which breaks model inference. Word accesses
+  are reliable. A new FPGA build is targeting this and other issues.
+* **M85 and the QSPI controller:** The M85 cannot access the QSPI registers
+  (`0x4401_0000`); flash operations run from the R5 boot loader.
+* **NPU and the QSPI XiP window:** The Ethos-U85 lacks AXI access to the QSPI
+  XiP window at `0x60000000`, so `u85_model` copies the model into SRAM before
+  launching (`MODEL_RUN_FROM_FLASH=0`). Direct-from-flash mode requires RTL changes.
+* **`reset_control`:** Needs boot-ROM behaviour that the current FPGA image does
+  not provide; run with `--include-reset-control` to try it.
+
+### Workaround: Running apps from SRAM
+
+When flashing an application image that is too large for QSPI sector boundaries,
+the app may need to be placed at a flash offset that leaves room for the model.
+If your app crosses the model base (`0x008000`), you will overwrite the model:
+
+1. Reduce your app size (e.g., by using `-O2` optimization).
+2. Or adjust `MODEL_FLASH_BASE` in `libs/Device/R5/Include/sys_memory_map.h`.
+
+For model inference with **word-aligned** data (e.g., feature maps at 32-bit boundaries),
+the SRAM byte-access limitation is less critical. See
+[`models/README.md`](models/README.md#sram-budget) for details.
 
 ## Further reading
 
+For details, see the referenced README files and app documentation:
+
 * [`AGENTS.md`](AGENTS.md) — condensed build/flash/debug reference for agents.
-* [`models/README.md`](models/README.md) — models, test vectors, SRAM budget,
-  Vela configuration and flash layout.
-* [`apps/u85_model/README.md`](apps/u85_model/README.md) — model image format,
-  run modes and expected UART output.
-* Per-app notes: `apps/mhu_tests/README.md`, `apps/timer_tests/README.md`,
-  `apps/u85_control/README.md`, `apps/fpu_tests/README.md`.
+* [`models/README.md`](models/README.md) — model sources, Vela configuration, SRAM budget,
+  test vectors and flash layout.
+* [`apps/u85_model/README.md`](apps/u85_model/README.md) — model image format (`MVL1`),
+  run modes (SRAM vs flash) and expected UART output.
+* Per-app notes: `apps/mhu_tests/`, `apps/timer_tests/`, `apps/u85_control/`,
+  `apps/fpu_tests/`.
